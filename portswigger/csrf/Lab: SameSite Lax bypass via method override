@@ -1,0 +1,40 @@
+SameSite Lax Bypass via Method Override
+
+**Lab URL**: (https://portswigger.net/web-security/csrf/bypassing-samesite-restrictions/lab-samesite-lax-bypass-via-method-override)
+**Category**: CSRF  
+**Difficulty**: Practitioner
+**note**: The default SameSite restrictions differ between browsers. As the victim uses Chrome, we recommfire end also using Chrome(or Burp's built-in Chromium browser) to test your exploit.
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates how CSRF can still occur even with SameSite=Lax protection if the application allows **HTTP method override via query parameters**.
+- I learned how to **bypass SameSite cookie restrictions** by forcing a **top-level GET request** that uses `_method=POST` to trick the server into processing it as a POST request.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Analyze the Vulnerable Request
+- Logged in as `wiener:peter` and changed email.
+- Observed the `POST /my-account/change-email` request has **no CSRF token**, making it a potential CSRF target.
+- Session cookie has no `SameSite` attribute, so default behavior applies (`Lax` in Chrome).
+- **GET requests with top-level navigation** will include cookies — this is the key!
+
+### 2. Test Method Override
+- Sent the request to Repeater.
+- Right-click Change to `GET`. Server rejected it.
+- Tried:  
+GET /my-account/change-email?email=testtest123@web-security-academy.net&_method=POST
+- It worked, The email was updated using method override.
+
+### 3. Craft Exploit Payload
+- Used the Exploit Server to host a script that forces a top-level navigation to the malicious URL:
+
+```html
+<script>
+location = "https://lab-id.web-security-academy.net/my-account/change-email?email=pwned@web-security-academy.net&_method=POST";
+</script>
+
+email successfully changed.
