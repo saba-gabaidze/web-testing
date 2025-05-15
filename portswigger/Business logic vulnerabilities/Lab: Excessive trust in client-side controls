@@ -1,0 +1,41 @@
+Excessive Trust in Client-Side Controls
+
+**Category**: Business Logic  
+**Lab Title**: Excessive trust in client-side controls  
+**Difficulty**: Apprentice  
+
+---
+
+## Overview / What I Learned
+
+This lab demonstrates a common logic flaw in e-commerce applications: trusting the client to supply sensitive data like product prices. It shows how client-manipulable parameters can be abused if not validated on the server side.
+
+Key lesson: All sensitive calculations (like pricing) must be performed server-side. Never trust user input for security-critical data.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Initial Setup
+- Logged in as user `wiener:peter`.
+- Tried to purchase the "Lightweight l33t leather jacket" and received an error due to insufficient store credit.
+
+### 2. Intercepting Add to Cart
+- Intercepted the `POST /cart` request using Burp Suite.
+- The request included a `price` parameter:
+  
+POST /cart HTTP/1.1
+Host: target
+
+productId=3&redir=PRODUCT&quantity=1&price=1337
+
+
+### 3. Manipulating the Price
+- Sent the intercepted request to Burp Repeater.
+- Changed `price=1337` to `price=5`.
+- Sent the modified request and confirmed via cart page that the price had changed.
+
+### 4. Final Purchase
+- Proceeded to checkout.
+- Successfully purchased the jacket at the modified price using available store credit.
+- Lab marked as solved.
