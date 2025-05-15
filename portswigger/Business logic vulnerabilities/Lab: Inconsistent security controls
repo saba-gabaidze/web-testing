@@ -1,0 +1,55 @@
+Access Based on Email Domain
+
+**Category**: Access Control  
+**Difficulty**: Apprentice  
+
+---
+
+## Overview / What I Learned
+
+This lab demonstrates how flawed logic in access control checks can lead to unauthorized privilege escalation.  
+Access to admin functionality was mistakenly granted based on the user's email domain, rather than robust authentication or authorization mechanisms.
+
+**Key Takeaway**: Email domains should never be used as a trust boundary for access control.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Reconnaissance
+- Browsed to `/admin` manually.
+- Page returned a message: “Only employees of DontWannaCry can access this page.”
+- Hinted that access may depend on the user's **email domain**.
+
+### 2. Account Registration
+- Registered a new user with an arbitrary email using the lab’s custom domain:
+test@<your-lab-id>.web-security-academy.net
+
+markdown
+Copy
+Edit
+- Confirmed registration via the lab's email client.
+
+### 3. Email Manipulation
+- Logged in, then navigated to the "My account" page.
+- Changed the registered email to:
+test@dontwannacry.com
+
+pgsql
+Copy
+Edit
+- Successfully updated the email without re-verification.
+
+### 4. Privilege Escalation
+- Revisited `/admin` and gained access to the admin panel.
+
+### 5. Lab Completion
+- In the admin panel, found the option to delete user `carlos`.
+- Clicked "Delete" — lab solved.
+
+---
+
+## Lessons Learned
+
+- Never implement authorization logic based on client-controlled values like email domains.
+- Always enforce server-side access controls based on roles or privileges stored securely in the backend.
