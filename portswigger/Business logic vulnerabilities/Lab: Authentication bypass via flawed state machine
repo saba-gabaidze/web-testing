@@ -1,0 +1,54 @@
+ Authentication bypass via flawed state machine
+
+**Category**: Authentication  
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates a **flawed state machine** in the authentication process.
+- I learned how to bypass role selection logic that assumes a strict sequence of requests.
+- By dropping the intermediate request (`GET /role-selector`), the application defaults to **administrator privileges** without validation.
+- Highlights the importance of **enforcing state transitions server-side** rather than relying on client-side navigation flow.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Normal Login Flow
+- Navigated to the login page and submitted valid user credentials:  
+  `wiener:peter`
+- Observed that after `POST /login`, the app sends a `GET /role-selector` request.
+- Role must be selected before reaching the home page.
+
+### 2. Exploit the Flawed State Machine
+- Used Burp Suite's Proxy Intercept feature.
+- Intercepted `POST /login` and forwarded it.
+- The next request `GET /role-selector` was intercepted and **dropped**.
+
+### 3. Bypassing Role Selection
+- After dropping the role-selector request, manually navigated to the home page:
+- Verified that I was logged in as **administrator** by accessing:
+GET /admin
+
+### 4. Lab Objective: Delete Carlos
+- Accessed the admin panel at `/admin`.
+- Located user `carlos` and triggered the **delete** action.
+- Lab solved.
+
+---
+
+## Root Cause
+
+- The application does not validate that a role was selected.
+- Role selection is implied by the client-side sequence but not **enforced** server-side.
+- This allows attackers to **skip required state transitions**, leading to privilege escalation.
+
+---
+
+## Mitigation
+
+- Server must enforce **strict state machine transitions**.
+- After login, enforce role selection server-side before assigning privileges or redirecting to home.
+- Never rely solely on client-driven flows for critical authentication steps.
