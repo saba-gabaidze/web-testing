@@ -1,0 +1,60 @@
+Exploiting integer overflow to bypass price checks
+
+**Category**: Logic Flaws  
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates a low-level logic flaw resulting from improper handling of integer values.
+- I learned how large quantities of an item priced in cents can cause an integer overflow, resulting in a negative cart total.
+- The flaw was exploitable due to lack of checks against unrealistic quantity values or total cost limits.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Initial Setup
+- Logged in with provided credentials: `wiener:peter`.
+- Added the target item, "Lightweight l33t leather jacket", to the cart.
+- Attempted checkout and confirmed insufficient store credit.
+
+### 2. Identify Add-to-Cart Logic
+- Intercepted `POST /cart` with parameters:
+  - `productId=2`
+  - `quantity=1`
+- Sent the request to Burp Repeater and changed quantity to `99` – confirmed 2-digit limit works.
+
+### 3. Launching Intruder Attack
+- Sent the request to Burp Intruder.
+- Configured payloads:
+  - Payload type: Null payloads
+  - Payload count: Infinite
+- Started the attack with 1 concurrent request using a resource pool.
+- While the attack ran, monitored cart totals by refreshing the cart page.
+- Observed total overflow from large positive to large negative values.
+
+### 4. Controlled Overflow
+- Reset the attack with exactly 323 payloads.
+- After it completed, manually added `47` jackets via Repeater (`quantity=47`).
+- Resulting total was approximately `-1221.96`.
+
+### 5. Normalize Cart Total
+- Added another item (e.g., `productId=1`) via Burp Repeater in small quantities.
+- Adjusted until cart total was between `$0` and `$100`.
+
+### 6. Final Step
+- Proceeded to checkout and successfully completed the purchase within credit limit.
+- Lab solved.
+
+---
+
+## Key Takeaways
+
+- Back-end systems storing prices in cents and using 32-bit signed integers can be vulnerable to overflows.
+- Integer overflows are logic-level flaws that can bypass business rules like credit limits.
+- This vulnerability occurred due to lack of:
+  - Maximum quantity limits
+  - Total cart value sanity checks
+  - Input validation on numerical parameters
