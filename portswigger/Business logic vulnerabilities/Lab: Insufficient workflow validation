@@ -1,0 +1,53 @@
+Insufficient Workflow Validation
+
+**Category**: Access Control  
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+This lab demonstrates how insecure assumptions about workflow sequences can lead to broken access control. The server incorrectly assumes that the user will only access the order confirmation page after completing a valid checkout process.
+By abusing this logic flaw, it's possible to purchase expensive items without paying.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Initial Purchase Flow Observation
+- **Logged in** as `wiener:peter`
+- Purchased a cheap item with existing store credit.
+- Observed the sequence of requests:
+  - `POST /cart/checkout` (initiates purchase)
+  - Followed by `GET /cart/order-confirmation?order-confirmation=true`
+
+### 2. Isolated the Confirmation Request
+- Captured the `GET /cart/order-confirmation?order-confirmation=true` request in Burp Suite.
+- Sent this request to Repeater for later use.
+
+### 3. Added the Expensive Item to Cart
+- Browsed to the store.
+- Added the **Lightweight l33t leather jacket** to the cart.
+
+### 4. Skipped Payment via Repeater
+- Resent the confirmation GET request from Repeater without completing a proper checkout.
+- The server assumed a valid purchase and completed the transaction.
+
+### 5. Lab Solved
+- The expensive item was added to the user’s order history without deducting credit.
+- Lab completed successfully.
+
+---
+
+## Root Cause
+
+- The backend does not validate that a real checkout occurred before granting access to the order confirmation endpoint.
+- There is no server-side state check to verify that a payment or authorization process happened before confirming the order.
+
+---
+
+## Mitigation
+
+- Implement strict server-side workflow validation.
+- Use stateful tokens or flags to track whether critical steps (like payment) have been properly executed before allowing access to subsequent stages like confirmation.
+- Avoid trusting only client-side sequence of requests.
