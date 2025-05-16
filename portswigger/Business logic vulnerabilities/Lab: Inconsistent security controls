@@ -17,6 +17,7 @@ Access to admin functionality was mistakenly granted based on the user's email d
 ## Exploit Steps / Attack Methodology
 
 ### 1. Reconnaissance
+- Used Burp engagment content discovery tool
 - Browsed to `/admin` manually.
 - Page returned a message: “Only employees of DontWannaCry can access this page.”
 - Hinted that access may depend on the user's **email domain**.
@@ -24,10 +25,6 @@ Access to admin functionality was mistakenly granted based on the user's email d
 ### 2. Account Registration
 - Registered a new user with an arbitrary email using the lab’s custom domain:
 test@<your-lab-id>.web-security-academy.net
-
-markdown
-Copy
-Edit
 - Confirmed registration via the lab's email client.
 
 ### 3. Email Manipulation
@@ -35,9 +32,6 @@ Edit
 - Changed the registered email to:
 test@dontwannacry.com
 
-pgsql
-Copy
-Edit
 - Successfully updated the email without re-verification.
 
 ### 4. Privilege Escalation
