@@ -1,0 +1,65 @@
+Infinite money logic flaw
+
+**Category**: Logic Flaws  
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+This lab demonstrates how a business logic flaw can be abused to generate unlimited store credit using a discount coupon. The vulnerability lies in the sequence of actions that allow a user to:
+- Purchase a gift card with a discount
+- Redeem the gift card at full value
+- Repeat this loop to accumulate more credit than spent
+
+The key takeaway is understanding how improper checks in logical workflows (rather than purely technical flaws) can lead to real financial exploitation.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Setup and Recon
+- Logged in with `wiener:peter`
+- Signed up for the newsletter and received coupon code: `SIGNUP30`
+- Found a $10 gift card for purchase in the store
+- Noticed that applying the coupon allowed purchasing the gift card for $7
+- After purchasing, a gift card code was generated and could be redeemed for $10 in store credit
+
+### 2. Manual Proof-of-Concept
+- Purchased a $10 gift card with the coupon (paid $7)
+- Redeemed it for $10 in store credit
+- Net profit: $3
+- Confirmed this loop could be repeated indefinitely
+
+### 3. Automation Using Burp Suite
+
+#### Macro Setup
+- Opened Burp > Project Options > Sessions > Added a Session Handling Rule
+- Configured a macro with the following sequence:
+  1. `POST /cart` - add gift card
+  2. `POST /cart/coupon` - apply `SIGNUP30`
+  3. `POST /cart/checkout` - place order
+  4. `GET /cart/order-confirmation?order-confirmed=true` - get gift card code
+  5. `POST /gift-card` - redeem gift card
+
+- Extracted the gift card code from the confirmation page response using a custom parameter
+- Set the `gift-card` parameter in the final request to use the extracted value
+
+#### Intruder Attack
+- Sent a `GET /my-account` request to Burp Intruder
+- Used Sniper attack with 412 null payloads
+- Set Intruder resource pool to 1 concurrent thread to avoid race conditions
+- Each request triggered the macro loop, adding $3 to store credit per iteration
+
+### 4. Final Step
+- After accumulating enough store credit, purchased the "Lightweight l33t leather jacket"
+- Successfully solved the lab
+
+---
+
+## Key Lessons
+
+- Business logic flaws are exploitable even without deep technical vulnerabilities
+- Always verify the total economic effect of multi-step workflows
+- Proper backend validation is necessary to prevent unintended financial gain
+- Tools like Burp Macros and Intruder are powerful for automating logical attack chains
