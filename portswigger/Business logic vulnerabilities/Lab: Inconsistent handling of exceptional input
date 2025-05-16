@@ -1,0 +1,52 @@
+Exploiting Email Truncation to Gain Admin Access
+
+**Category**: Logic Flaws  
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates how improper input validation and inconsistent handling of exceptionally long inputs can be exploited.
+- The vulnerability arises because the application truncates email addresses at 255 characters internally but does not validate the entire original input consistently.
+- By crafting a specially crafted long email address that includes the admin domain as a subdomain near the truncation boundary, it's possible to register as an admin.
+- This allows access to the restricted admin panel and performing administrative actions, such as deleting user accounts.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Discover Admin Panel
+- Used Burp Suite's **Content Discovery** tool to find `/admin` endpoint.
+- Visiting `/admin` shows access restricted to employees of `dontwannacry.com`.
+
+### 2. Identify Lab Email Domain
+- Checked the lab’s built-in email client for the unique domain suffix (e.g., `@abcd1234.web-security-academy.net`).
+
+### 3. Register Long Email Address
+- Registered with an exceptionally long email (≥ 200 characters before the @) to observe truncation.
+- Confirmed account creation via confirmation email and noted that the email is truncated to 255 characters on the “My Account” page.
+
+### 4. Exploit Email Truncation Logic
+- Registered again with a crafted email:
+verylongstring@dontwannacry.com.abc.web-security-academy.net
+
+- Made sure the last character of `@dontwannacry.com` is exactly at position 255 after truncation.
+- Confirmation email received and account activated.
+
+### 5. Gain Admin Access
+- Logged in with the new account.
+- Verified on “My Account” page that email appears as `@dontwannacry.com`.
+- Accessed `/admin` panel successfully.
+
+### 6. Complete Lab
+- In the admin panel, deleted user `carlos`.
+- Lab solved.
+
+---
+
+## Key Takeaways
+
+- Input length limits and truncation can cause logical flaws if validation and authorization checks are not consistent.
+- Always validate input length and format before truncation or normalization.
+- This type of flaw can lead to privilege escalation or unauthorized access.
