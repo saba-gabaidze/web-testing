@@ -1,0 +1,46 @@
+Flawed enforcement of business rules: Coupon Abuse
+
+**Category**: Business Logic  
+**Difficulty**: Apprentice  
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates a classic business logic flaw in coupon application.
+- I learned how **alternating valid coupons** bypasses logic intended to restrict their reuse.
+- Reinforced the importance of **server-side validation** in discount and transaction logic.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Initial Setup
+- Logged in using provided credentials:  
+  - `wiener:peter`
+- Collected two coupon codes:
+  - `NEWCUST5` (shown on site)
+  - `SIGNUP30` (received after newsletter signup)
+
+### 2. Cart Preparation
+- Added the **Lightweight l33t leather jacket** to the cart.
+
+### 3. Coupon Abuse
+- Applied coupons in alternating order:
+  - `SIGNUP30` → accepted  
+  - `NEWCUST5` → accepted  
+  - `SIGNUP30` → accepted again  
+  - `NEWCUST5` → accepted again  
+  - Repeated alternation until the price dropped below available store credit
+
+### 4. Final Purchase
+- Completed checkout once the discounted total was under store credit.
+- Successfully bought the item and solved the lab.
+
+---
+
+## Technical Takeaways
+
+- Logic flaws often occur in multi-step workflows like checkout systems.
+- Lack of tracking or limiting unique coupon use per session/account can lead to abuse.
+- Coupon reuse prevention should **persist across the transaction** and not just per individual input.
