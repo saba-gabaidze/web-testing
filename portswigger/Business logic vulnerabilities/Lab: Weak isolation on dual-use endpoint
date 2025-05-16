@@ -1,0 +1,61 @@
+ Weak isolation on dual-use endpoint
+
+**Category**: Authentication  
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates how **lack of proper privilege separation** in account-related functionality can allow an attacker to target higher-privileged users.
+- I learned how endpoints that serve both self-service and administrative functions can be abused if they rely on input fields (e.g., `username`) instead of the session context.
+- Understanding session-context vs. request-parameter-based privilege handling is critical for avoiding horizontal and vertical privilege escalation flaws.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Log in with a Low-Privileged User
+- Logged in with credentials:
+Username: wiener
+Password: peter
+
+### 2. Intercept Password Change Request
+- Navigated to **My Account** → **Change Password**.
+- Captured the POST request in Burp Suite:
+POST /my-account/change-password
+
+username=wiener&current-password=peter&new-password=123456&confirm-password=123456
+
+### 3. Analyze and Manipulate the Request
+- Removed the `current-password` parameter.
+- Changed the `username` to `administrator`.
+- Updated the password fields to:
+new-password=hacked123
+confirm-password=hacked123
+
+### 4. Send Modified Request
+```http
+POST /my-account/change-password HTTP/1.1
+
+username=administrator&new-password=hacked123&confirm-password=hacked123
+Received a 200 OK response.
+
+5. Log in as Administrator
+Logged out.
+
+Logged back in as:
+
+Username: administrator
+Password: hacked123
+6. Delete User Carlos
+Navigated to the Admin Panel.
+
+Located and deleted the user carlos to solve the lab.
+
+Root Cause
+The /my-account/change-password endpoint uses a username parameter from the request body rather than enforcing it based on the authenticated session.
+
+There is no validation to ensure that the user initiating the request matches the username in the form.
+
+The absence of current-password verification made the attack easier.
