@@ -1,0 +1,65 @@
+Authentication Bypass via Encryption Oracle
+
+**Category**: Authentication Bypass  
+**Difficulty**: Practitioner  
+---
+
+## Overview / What I Learned
+
+This lab demonstrates how an encryption oracle can be abused to bypass authentication mechanisms. I learned how to:
+
+- Identify and interact with server-side encryption and decryption mechanisms via cookies.
+- Craft custom encrypted cookies to impersonate other users.
+- Understand block size alignment and how to truncate encrypted messages to remove prefixes.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Login and Set Stay Logged In Cookie
+
+- Logged in using the provided credentials:  
+  `wiener:peter`
+- Enabled the "Stay logged in" checkbox to generate the `stay-logged-in` cookie.
+
+### 2. Trigger the Encryption Oracle
+
+- Posted a comment with an invalid email to generate a `notification` cookie.
+- Observed that this cookie contains an encrypted version of the error message.
+- Verified that the server could:
+  - Encrypt arbitrary data (via email field in comment submission).
+  - Decrypt arbitrary data (displayed in responses).
+
+### 3. Decrypt the Original stay-logged-in Cookie
+
+- Sent a GET request with `notification` cookie replaced by the value of the `stay-logged-in` cookie.
+- Retrieved the plaintext: `wiener:<timestamp>`
+
+### 4. Create Encrypted administrator Cookie
+
+- In the email field, submitted `administrator:<same-timestamp>` to generate an encrypted value.
+- Verified the decrypted result still contained the unwanted prefix `Invalid email address:`.
+
+### 5. Truncate Prefix to Get Valid Value
+
+- Padded email to align with 16-byte block size:  
+  `xxxxxxxxxadministrator:<timestamp>`
+- Decrypted result and removed the first 2 encrypted blocks (prefix).
+- Re-encoded the remaining bytes and used it as the new `stay-logged-in` cookie.
+
+### 6. Gain Admin Access and Delete User
+
+- Used modified cookie in a request to `/`.
+- Confirmed login as `administrator`.
+- Sent request to:  
+  `/admin/delete?username=carlos`
+- Lab solved successfully.
+
+---
+
+## Notes
+
+- The attack relied on consistent encryption and decryption across different cookies (`notification` and `stay-logged-in`).
+- Proper use of block cipher properties (padding, block size) was key to modifying encrypted content.
+
+---
