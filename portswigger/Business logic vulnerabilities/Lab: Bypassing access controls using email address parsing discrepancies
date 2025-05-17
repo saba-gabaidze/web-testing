@@ -1,0 +1,58 @@
+Bypassing Access Controls Using Email Address Parsing Discrepancies
+
+**Category**: Access Control / Email Validation  
+**Difficulty**: Expert
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates how discrepancies in email parsing and encoding can be exploited to bypass domain restrictions during user registration.
+- The server enforces a domain whitelist (`ginandjuice.shop`), but its email validation logic fails to properly handle UTF-7 encoded email addresses.
+- By encoding the email using UTF-7, it is possible to register an account with an email that appears to pass validation but actually routes to an attacker-controlled address.
+- This exploit allows access to admin functionalities, including deleting other users.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Confirm Domain Restriction
+
+- Attempted registration with `foo@exploit-server.net`.
+- Registration was blocked with the message: "email domain must be ginandjuice.shop".
+- This confirmed domain enforcement on the registration email address.
+
+### 2. Test Encoded Email Formats
+
+- Tried Q-encoded emails like:  
+  `=?iso-8859-1?q?=61=62=63?=foo@ginandjuice.shop` and  
+  `=?utf-8?q?=61=62=63?=foo@ginandjuice.shop`  
+- These were detected and blocked with a "Registration blocked for security reasons" message.
+- The server likely detects common encoded formats as potential attacks.
+
+### 3. Exploit with UTF-7 Encoding
+
+- Registered using a UTF-7 encoded email:  
+=?utf-7?q?attacker&AEA-[EXPLOIT-SERVER-ID]&ACA-?=@ginandjuice.shop
+
+
+- The `&AEA-` encodes the `@` symbol, effectively allowing two `@` signs, bypassing validation.
+- The server sees the domain as `ginandjuice.shop` and allows registration.
+- The email system interprets the address as `attacker@[EXPLOIT-SERVER-ID]`, which is attacker-controlled.
+
+### 4. Confirm Account and Gain Access
+
+- Retrieved the registration confirmation email from the exploit server.
+- Clicked the confirmation link to activate the account.
+
+### 5. Access Admin Panel and Delete User
+
+- Logged into the newly created account.
+- Navigated to the Admin panel.
+- Deleted the user `carlos`.
+
+---
+
+## Conclusion
+
+This lab highlights the importance of consistent email parsing and validation. Attackers can exploit differences in encoding handling to bypass domain restrictions and gain unauthorized access. Proper validation should decode and normalize email addresses before enforcing restrictions.
