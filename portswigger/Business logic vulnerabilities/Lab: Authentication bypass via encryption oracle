@@ -63,3 +63,13 @@ This lab demonstrates how an encryption oracle can be abused to bypass authentic
 - Proper use of block cipher properties (padding, block size) was key to modifying encrypted content.
 
 ---
+
+Note for me DELETE later!!!
+So why not just remove the first 23 bytes?
+We can remove the prefix — but only if:
+
+URL-decode and Base64-decode the encrypted cookie to get the raw ciphertext.
+
+remove exactly one or more full encryption blocks (e.g., 16, 32, 48 bytes...) from the beginning — because it's block-based encryption (like AES-CBC or AES-ECB).
+
+If the data im trying to remove (the prefix) doesn’t align with full blocks, ill get padding or length errors when decrypting.
