@@ -1,0 +1,69 @@
+Web Shell Upload via Obfuscated File Extension
+
+Lab Difficulty: Practitioner
+Vulnerability Type: File Upload / Remote Code Execution (RCE)
+Lab Link: PortSwigger Lab
+
+Summary
+This lab demonstrates how weak server-side validation of file extensions can be bypassed using classic null byte obfuscation techniques.
+Although the application blacklists common dangerous extensions, it fails to sanitize filenames correctly, 
+allowing an attacker to upload a PHP web shell disguised as a benign file type and achieve remote code execution.
+
+Objective
+Upload a PHP web shell to the application by obfuscating its extension using a null byte, use it to read the contents of /home/carlos/secret,
+and submit the extracted secret to complete the lab.
+
+Technical Walkthrough
+1. Reconnaissance
+Logged in using provided credentials: wiener:peter
+
+Navigated to the account profile section with avatar upload functionality
+
+Uploaded a test .jpg file and identified the accessible path in the browser
+
+Intercepted the traffic in Burp Suite and confirmed the image was accessible via:
+
+GET /files/avatars/<filename>.jpg
+This revealed that uploaded files are publicly served from the /files/avatars/ directory.
+
+2. Creating a Web Shell
+A simple PHP script was crafted with the following payload:
+
+<?php echo file_get_contents('/home/carlos/secret'); ?>
+This script reads the contents of Carlos's secret file when executed.
+
+3. Uploading the Web Shell with Extension Obfuscation
+Attempted to upload exploit.php, but the server blocked it due to an extension blacklist
+
+Intercepted the POST /my-account/avatar request using Burp Suite
+
+Modified the filename in the Content-Disposition header to use a null byte followed by .jpg:
+
+filename="exploit.php%00.jpg"
+This tricks the server into interpreting the file as .jpg for validation but saves it as .php on disk
+
+Sent the modified request and received a successful upload response
+
+4. Executing the Payload
+Accessed the uploaded file via a GET request:
+
+GET /files/avatars/exploit.php HTTP/1.1
+Host: <LAB-ID>.web-security-academy.net
+The server executed the PHP payload and responded with the contents of the secret file:
+
+y9kT1v...<redacted>...
+Result
+The extracted secret was submitted through the lab interface, successfully completing the challenge.
+
+Mitigation
+To prevent this vulnerability in real-world applications:
+
+Implement strict extension whitelisting with proper server-side checks
+
+Sanitize user-supplied filenames and avoid relying solely on extensions
+
+Reject any filenames containing null bytes or special characters
+
+Configure the server to disallow execution of uploaded files
+
+Use isolated storage for user uploads and serve files via a secure content delivery mechanism
