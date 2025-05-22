@@ -1,0 +1,68 @@
+Web Shell Upload via Extension Blacklist Bypass
+
+Lab Difficulty: Practitioner
+Vulnerability Type: File Upload / Remote Code Execution (RCE)
+Lab Link: PortSwigger Lab
+
+Summary
+This lab highlights a security flaw in a file upload feature where the application blacklists certain file extensions, such as .php, to prevent arbitrary code execution.
+However, due to a misconfiguration in how file types are handled, this blacklist can be bypassed using an .htaccess file and a custom file extension.
+By uploading a malicious PHP script with a disguised extension and instructing the server to treat it as executable PHP, attackers can gain code execution capabilities.
+
+Objective
+Upload a disguised PHP web shell that bypasses the extension blacklist using a custom extension and an .htaccess file, execute the shell to read /home/carlos/secret,
+and submit the retrieved secret to complete the lab.
+
+Technical Walkthrough
+1. Reconnaissance
+Logged in with provided credentials: wiener:peter
+
+Navigated to the account settings page and identified an avatar upload feature
+
+Uploaded a benign image file (e.g., .jpg) and observed it being accessed via:
+
+GET /files/avatars/<image>.jpg
+Confirmed uploaded files are publicly accessible under the /files/avatars/ directory
+
+2. Preparing the Exploit
+Created a simple PHP script named exploit.php with the following payload:
+
+<?php echo file_get_contents('/home/carlos/secret'); ?>
+3. Uploading a Malicious .htaccess File
+Intercepted the avatar upload request using Burp Suite
+
+Replaced the uploaded file with an .htaccess file to instruct the server to treat files with a custom extension (.l33t) as PHP:
+
+AddType application/x-httpd-php .l33t
+Modified the filename in the request to .htaccess and set the Content-Type to text/plain
+
+Successfully uploaded the file to the server
+
+4. Uploading the Web Shell with a Bypassed Extension
+Re-used the intercepted request, this time changing the uploaded file to exploit.l33t
+
+Set Content-Type to application/x-php and included the PHP payload
+
+Upload was accepted without triggering the blacklist
+
+5. Executing the Payload
+Sent a GET request to the uploaded file using:
+
+GET /files/avatars/exploit.l33t
+The server executed the payload and returned the contents of /home/carlos/secret
+
+Result
+The secret retrieved from the web shell was submitted via the lab interface. The lab was successfully completed.
+
+Mitigation
+To prevent such vulnerabilities in real-world applications:
+
+Do not rely solely on blacklists for file extension filtering
+
+Enforce strict allowlists for file types and verify both file extensions and MIME types
+
+Disable execution in upload directories using server configuration (e.g., Apache's Options -ExecCGI or removing AddType directives)
+
+Rename uploaded files and store them in directories that are not web-accessible
+
+Validate uploaded files thoroughly on both client and server side
