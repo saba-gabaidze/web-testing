@@ -1,0 +1,48 @@
+Source Code Disclosure via Backup Files
+
+Lab Difficulty: Apprentice
+Vulnerability Type: Information Disclosure / Backup File Exposure
+Lab Link: PortSwigger Lab
+
+Summary
+This lab demonstrates a common information disclosure vulnerability where backup files are inadvertently exposed on the server.
+In this case, a backup .java.bak file is accessible, revealing hard-coded sensitive information including the database credentials.
+
+Objective
+Access the exposed source code backup file, identify the hard-coded Postgres database password, and submit it to complete the lab.
+
+Technical Walkthrough
+1. Initial Discovery
+Visited /robots.txt, which revealed a disallowed path: /backup
+
+Navigated to /backup and found a backup file named ProductTemplate.java.bak
+
+Alternatively, ran Burp Suite’s “Engagement tools” > “Discover content” to enumerate hidden files and directories
+
+2. Source Code Access
+Accessed the file directly:
+
+GET /backup/ProductTemplate.java.bak HTTP/1.1  
+Host: <LAB-ID>.web-security-academy.net  
+The server responded with the Java source code of the application component
+
+3. Extracting Sensitive Information
+In the retrieved source code, located the database connection string
+
+Identified a hard-coded password in a line such as:
+
+String dbPassword = "Sup3rS3cr3tP@ss";
+Result
+Submitted the extracted password via the lab interface
+
+
+Mitigation
+To avoid this vulnerability in real-world applications:
+
+Never store backup files in web-accessible directories
+
+Use strict access controls and avoid exposing internal paths via robots.txt
+
+Ensure automated cleanup of temporary and backup files
+
+Regularly scan web directories for accidentally exposed or sensitive files
