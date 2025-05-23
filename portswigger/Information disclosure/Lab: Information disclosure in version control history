@@ -1,0 +1,47 @@
+Information disclosure in version control history
+
+Lab Difficulty: Practitioner
+Vulnerability Type: Information Disclosure / Sensitive Data Exposure via Version Control
+
+Summary
+This lab demonstrates how sensitive information can be leaked through publicly accessible version control data. By accessing the .git directory, 
+an attacker can retrieve commit history and diffs that expose secrets such as hard-coded passwords, even if later commits attempt to remove them.
+
+Objective
+Obtain the administrator’s password by analyzing the Git version control history, log in as the administrator, and delete the user "carlos" to complete the lab.
+
+Technical Walkthrough
+
+Accessing the Version Control Data
+Navigate to the .git directory on the target application to reveal its Git metadata and repository files. 
+Download the entire .git directory recursively using a command such as:
+
+wget -r https://labId.web-security-academy.net/.git/
+(Windows users may need to use alternative tools or UNIX-like environments to run this command.)
+
+Analyzing Git History Locally
+Open the downloaded .git folder with a local Git client. Review the commit history to identify relevant changes.
+A commit with the message “Remove admin password from config” stands out.
+
+Inspecting Commit Diff for Sensitive Data
+Examining the diff of the commit reveals that the hard-coded administrator password was replaced with an environment variable ADMIN_PASSWORD. However,
+the actual password remains visible in the commit diff before removal, leaking the secret.
+
+Using the Leaked Password
+Return to the lab application and use the leaked password to log in as the administrator.
+
+Completing the Lab
+After logging in, navigate to the admin interface and delete the user "carlos".
+
+Result
+Successfully exploited sensitive data disclosure through exposed Git version control history to obtain the administrator’s password. Logged in as admin and deleted the target user to solve the challenge.
+
+Mitigation
+
+Do not expose .git or any version control metadata directories on production servers.
+
+Use environment variables or secure vaults for secrets management instead of hard-coding credentials.
+
+Implement access controls to prevent unauthorized access to source control data.
+
+Regularly audit commit history for accidental secret exposure and use tools like Git secret scanners.
