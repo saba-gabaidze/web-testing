@@ -1,0 +1,66 @@
+Authentication Bypass via Information Disclosure
+
+Lab Difficulty: Apprentice
+Vulnerability Type: Information Disclosure / Authentication Bypass
+
+Summary
+This lab demonstrates how improperly handled debug functionality can expose internal authentication mechanisms.By leveraging information revealed through the TRACE method, 
+an attacker can manipulate custom headers to bypass authentication and gain unauthorized access to admin functionality.
+
+Objective
+Bypass the authentication mechanism using the leaked custom header, access the admin panel, and delete the user carlos to complete the lab.
+
+Technical Walkthrough
+1. Initial Enumeration
+Logged in using: wiener:peter
+
+Attempted to access /admin and received a response indicating that access is restricted to administrators or local IP addresses.
+
+2. Identifying the Vulnerability with TRACE
+Sent a TRACE /admin request via Burp Repeater.
+
+Response echoed headers and revealed a custom header:
+
+X-Custom-IP-Authorization: <your IP>
+This indicates the application uses this header to determine whether a request originates from localhost.
+
+3. Exploiting the Header for Authentication Bypass
+Configured Burp Suite to inject the custom header:
+
+Navigated to Proxy > Match and Replace
+
+Added a new rule:
+
+Type: Request header
+
+Match: (leave blank)
+
+Replace: X-Custom-IP-Authorization: 127.0.0.1
+
+This caused every request to include the spoofed header simulating a request from localhost.
+
+4. Accessing the Admin Panel
+With the header injected, reloaded the application’s home page.
+
+The /admin interface was now accessible.
+
+5. Completing the Objective
+Navigated to the admin panel
+
+Deleted the user carlos
+
+Lab challenge was successfully completed.
+
+Result
+Successfully exploited the information disclosure to bypass the admin authentication using a custom HTTP header. Accessed the admin interface and deleted the target user.
+
+Mitigation
+To prevent similar vulnerabilities:
+
+Disable the TRACE HTTP method in production environments.
+
+Avoid using custom headers for access control without strong validation.
+
+Perform access control checks based on authenticated user context, not IP address or header spoofing.
+
+Implement proper segmentation and remove debug functionalities from production code.
