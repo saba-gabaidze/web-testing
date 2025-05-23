@@ -2,7 +2,6 @@ Source Code Disclosure via Backup Files
 
 Lab Difficulty: Apprentice
 Vulnerability Type: Information Disclosure / Backup File Exposure
-Lab Link: PortSwigger Lab
 
 Summary
 This lab demonstrates a common information disclosure vulnerability where backup files are inadvertently exposed on the server.
