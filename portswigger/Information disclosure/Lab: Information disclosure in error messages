@@ -1,0 +1,54 @@
+Information Disclosure in Error Messages
+
+Lab Difficulty: Apprentice
+Vulnerability Type: Information Disclosure / Verbose Error Messages
+Lab Link: PortSwigger Lab
+
+Summary
+This lab demonstrates how verbose error messages can reveal sensitive implementation details, such as framework version numbers.
+Such information can aid attackers in identifying and targeting known vulnerabilities in third-party components used by the application.
+
+Objective
+Trigger an error that discloses the framework version in use. Extract the version number of the third-party component and submit it to complete the lab.
+
+Technical Walkthrough
+1. Reconnaissance
+
+Logged into the application and browsed to a product page.
+
+Captured the HTTP request for the product page in Burp Suite Proxy.
+
+Identified a productId parameter in the URL query string:
+
+GET /product?productId=1 HTTP/1.1
+Host: <LAB-ID>.web-security-academy.net
+2. Input Manipulation
+
+Sent the request to Burp Repeater.
+
+Modified the productId parameter to use a string instead of an integer:
+
+GET /product?productId="test" HTTP/1.1
+Host: <LAB-ID>.web-security-academy.net
+3. Error Message Analysis
+
+The server returned a full stack trace, indicating an unhandled exception.
+
+The error message exposed internal details, including the version of the framework in use:
+
+Apache Struts 2 2.3.31
+Result
+The version number 2.3.31 of Apache Struts 2 was extracted from the verbose error message.
+Submitting this value successfully completed the lab.
+
+Mitigation
+To prevent this type of information disclosure in real-world applications:
+
+Disable verbose error messages in production environments.
+
+Implement custom error pages that reveal no internal details.
+
+Use centralized exception handling to capture and log errors securely without exposing them to users.
+
+Regularly update and patch third-party frameworks to fix known vulnerabilities.
+
