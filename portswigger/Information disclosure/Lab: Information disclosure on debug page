@@ -1,0 +1,60 @@
+Information Disclosure via Debug Page
+
+Lab Difficulty: Apprentice
+Vulnerability Type: Information Disclosure / Debug Information
+
+Summary
+This lab demonstrates how exposing internal debug pages in production environments can lead to critical information disclosure. A publicly accessible phpinfo() page reveals sensitive server environment variables,
+including SECRET_KEY, which could be leveraged for further attacks such as session forging or configuration tampering.
+
+Objective
+Locate and access the exposed debug page. Extract the SECRET_KEY environment variable from the page and submit it to complete the lab.
+
+Technical Walkthrough
+1. Initial Reconnaissance
+
+Accessed the lab's homepage with Burp Suite running.
+
+Navigated to the Target > Site Map in Burp to get an overview of discovered URLs.
+
+Used Burp's Engagement tools > Find comments to inspect HTML comments on the homepage.
+
+Discovered a comment pointing to a hidden debug endpoint:
+
+
+<!-- Debug: /cgi-bin/phpinfo.php -->
+2. Accessing the Debug Endpoint
+
+Located /cgi-bin/phpinfo.php in Burp’s site map.
+
+Right-clicked and selected Send to Repeater.
+
+Sent a GET request to the endpoint:
+
+
+GET /cgi-bin/phpinfo.php HTTP/1.1  
+Host: <LAB-ID>.web-security-academy.net
+The response returned a fully rendered PHP debug info page, revealing environment variables and server configuration details.
+
+3. Extracting the SECRET_KEY
+
+Scrolled through the phpinfo() output in the response.
+
+Identified the value of the SECRET_KEY environment variable embedded in the output.
+
+Copied the value and submitted it to the lab interface.
+
+Result
+Successfully extracted the SECRET_KEY environment variable from the exposed debug page and completed the lab.
+
+Mitigation
+To prevent this vulnerability in real-world applications:
+
+Never deploy debug or development tools to production environments.
+
+Disable or remove all debugging scripts and endpoints before release.
+
+Use access controls (e.g., IP whitelisting, authentication) for sensitive pages.
+
+Regularly audit source code and deployments for exposed internal paths or comments.
+
