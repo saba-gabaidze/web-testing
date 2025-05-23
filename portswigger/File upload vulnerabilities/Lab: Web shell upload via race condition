@@ -1,0 +1,70 @@
+Remote Code Execution via Web Shell Upload (Race Condition Exploit)
+
+Lab Difficulty: Expert
+Vulnerability Type: File Upload / Race Condition / Remote Code Execution (RCE)
+Lab Link: PortSwigger Web Security Academy (replace with actual URL)
+
+Summary
+This lab illustrates a race condition vulnerability in a secure file upload mechanism. Although the application performs robust file validation and virus scanning,
+it deletes malicious files only after the scan completes. Exploiting a race condition by sending overlapping requests allows execution of a malicious PHP web shell before deletion.
+
+Objective
+Upload a PHP web shell and use it to read the contents of /home/carlos/secret. Submit the secret to complete the lab.
+
+Technical Walkthrough
+1. Reconnaissance
+Logged in using provided credentials (wiener:peter).
+
+Navigated to the avatar upload feature in the user profile.
+
+Uploaded a benign image and confirmed the file is accessible via a URL like:
+
+
+GET /files/avatars/<filename>
+This confirmed the upload folder is publicly accessible.
+
+2. Preparing the Web Shell
+Created a PHP file named exploit.php containing:
+
+<?php echo file_get_contents('/home/carlos/secret'); ?>
+This script outputs the secret file content.
+
+3. Exploiting the Race Condition Using Burp Repeater
+Intercepted the avatar upload POST request in Burp Suite while uploading exploit.php.
+
+Modified the intercepted request to upload exploit.php with appropriate headers:
+
+filename=exploit.php
+
+Content-Type: application/x-php
+
+Request body containing the PHP payload.
+
+Sent this modified POST request to upload the web shell.
+
+In Burp Repeater, created a new tab with the POST request (uploading exploit.php).
+
+Created another GET request tab to fetch the uploaded shell:
+
+GET /files/avatars/exploit.php HTTP/1.1
+Host: <LAB-ID>.web-security-academy.net
+Grouped both the POST and GET requests in Burp Repeater using the “Create Tab Group” feature.
+
+Sent both requests in parallel (at the same time) using the Group > Send all in parallel option to exploit the timing window between upload and deletion.
+
+Some GET requests succeeded with HTTP 200 and returned the secret content before the server deleted the malicious file.
+
+Result
+The secret contents from /home/carlos/secret were retrieved via the race condition. Submitted the secret to the lab interface to complete the challenge.
+
+Mitigation
+Avoid relying solely on post-upload scanning and deletion.
+
+Validate and block malicious files before saving to the server.
+
+Implement atomic file handling to prevent race conditions (e.g., upload to a temporary location, validate, then move atomically).
+
+Disable execution permissions in upload directories.
+
+Use file type and content validation consistently and immediately before file usage.
+
