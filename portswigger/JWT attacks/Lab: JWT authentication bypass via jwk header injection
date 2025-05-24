@@ -1,0 +1,67 @@
+Lab: JWT Authentication Bypass via JWK Header Injection
+
+Difficulty: Practitioner
+Vulnerability Type: Authentication Bypass / JWK Header Injection
+
+Summary
+This lab demonstrates a JWT authentication bypass due to insecure handling of the jwk header parameter. The server blindly trusts a JWK (JSON Web Key) embedded in the JWT header,
+allowing attackers to inject their own public key to forge valid tokens and escalate privileges.
+
+Objective
+Modify and sign a JWT with a forged embedded JWK public key to impersonate the administrator, access the admin panel at /admin, and delete the user carlos.
+
+Technical Walkthrough
+1. Initial Access and Observation
+Log in with credentials: wiener:peter.
+
+Intercept the post-login GET /my-account request in Burp Suite.
+
+Send the captured request to Burp Repeater, changing the path to /admin.
+
+Observe that only the admin user can access this resource.
+
+2. Generate a Malicious JWK Key Pair
+Open Burp’s JWT Editor extension (available in BApp store).
+
+Navigate to the Keys tab.
+
+Click New RSA Key and generate a new RSA key pair.
+
+Save the generated key (no need to select size manually; auto-generated).
+
+3. Modify JWT Payload and Inject JWK
+Switch to the JWT Editor tab for the /admin request in Burp Repeater.
+
+Change the sub claim in the payload to administrator.
+
+Click Attack > Embedded JWK and select the RSA key you generated.
+
+The JWT header is automatically modified to include a jwk parameter containing your public key.
+
+This fools the server into using your injected public key to verify the signature.
+
+4. Sign and Send Forged Token
+Send the modified request with the forged JWT.
+
+You should gain access to the admin panel.
+
+5. Complete the Lab
+In the admin panel response, locate /admin/delete?username=carlos.
+
+Send a request to this URL to delete user carlos and finish the lab.
+
+Key Insights
+Servers that accept jwk headers without verifying the trustworthiness of the key are vulnerable to this attack.
+
+Attackers can inject their own public key, sign the JWT with the matching private key, and bypass signature verification.
+
+This bypass works because the server uses the embedded JWK as the verification key blindly.
+
+Mitigation
+Do not accept untrusted JWKs from clients.
+
+Verify the source and integrity of JWKs before use.
+
+Use a fixed, server-side trusted key for JWT verification.
+
+Implement strict validation of JWT headers.
