@@ -1,0 +1,56 @@
+JWT Authentication Bypass via Unverified Signature
+
+Lab Difficulty: Apprentice
+Vulnerability Type: Authentication Bypass / JWT Signature Verification Flaw
+
+Summary
+This lab demonstrates a critical implementation flaw in JWT-based authentication. The server does not verify the signature of incoming JWT tokens,
+allowing attackers to modify the token payload arbitrarily. By exploiting this flaw, an attacker can impersonate any user, including administrators,
+and perform unauthorized actions.
+
+Objective
+Modify your JWT session token to access the admin panel at /admin and delete the user carlos to complete the lab.
+
+Technical Walkthrough
+1. Authentication and Token Inspection
+Logged in with the provided credentials: wiener:peter.
+
+Observed the session cookie in the HTTP response; it was a JSON Web Token (JWT).
+
+In Burp Suite HTTP history, inspected the token and decoded its payload using the built-in JWT decoder.
+
+Noted the sub claim contained the username (wiener).
+
+2. Accessing the Admin Panel
+Sent a request to /admin with the original token and confirmed access was denied.
+
+Used Burp Repeater to resend the /admin request with the same JWT token.
+
+3. Modifying the JWT Payload
+Edited the sub claim value in the JWT payload from wiener to administrator within Burp’s JWT editor.
+
+Sent the modified request to /admin.
+
+Successfully gained access to the admin panel without signature verification blocking the request.
+
+4. Deleting the Target User
+In the admin panel response, found the URL endpoint for deleting users: /admin/delete?username=carlos.
+
+Sent a request to this endpoint to delete the user carlos.
+
+The lab was completed successfully after this action.
+
+Result
+By exploiting the lack of signature verification on JWT tokens, unauthorized privilege escalation was achieved, granting admin access and the ability to delete users.
+
+Mitigation
+To protect against this vulnerability in production environments:
+
+Always verify the signature of JWT tokens on the server side using a secure secret or public/private key pair.
+
+Reject any tokens with invalid or missing signatures before processing.
+
+Implement strong session management and consider using short token lifetimes with refresh tokens.
+
+Regularly audit JWT handling code for security best practices.
+
