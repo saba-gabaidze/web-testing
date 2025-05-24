@@ -1,0 +1,63 @@
+JWT Authentication Bypass via Weak Signing Key
+
+Lab Difficulty: Practitioner
+Vulnerability Type: Authentication Bypass / Weak JWT Secret Key
+
+Summary
+This lab demonstrates a weakness in JWT-based authentication caused by the use of an easily guessable or brute-forcible signing secret key.
+Attackers can recover the secret key through brute force and use it to forge valid JWT tokens with elevated privileges.
+
+Objective
+Brute-force the website’s weak secret key used to sign JWTs, then craft a token with the sub claim set to administrator to gain access to the admin panel at /admin. 
+Finally, delete the user carlos to complete the lab.
+
+Technical Walkthrough
+
+Brute-Forcing the Secret Key
+
+Logged in with provided credentials: wiener:peter.
+
+Captured the session JWT token after login by intercepting the /my-account request in Burp Suite.
+
+Attempted to access /admin with the captured token and confirmed that only the administrator user can access this page.
+
+Used hashcat to brute-force the JWT secret key with the captured token and a wordlist of common secrets:
+hashcat -a 0 -m 16500 <YOUR-JWT> /path/to/jwt.secrets.list
+
+The brute-force revealed the weak secret key was secret1.
+
+Creating a Forged Signing Key
+
+Base64-encoded the recovered secret key using Burp Decoder.
+
+In Burp Suite, opened the JWT Editor extension, created a new symmetric key, and replaced the k property value with the Base64-encoded secret key.
+
+Saved the generated key for signing the forged token.
+
+Modifying and Signing the JWT
+
+Loaded the captured /admin request into Burp Repeater.
+
+Edited the JWT payload to change the sub claim to administrator.
+
+Used the JWT Editor to sign the modified token with the forged key, ensuring the JWT header was not altered.
+
+Sent the request with the newly signed token and successfully gained access to the admin panel.
+
+Completing the Lab
+
+Located the URL endpoint /admin/delete?username=carlos in the admin panel response.
+
+Sent a request to this endpoint to delete user carlos and completed the lab.
+
+Result
+By brute-forcing a weak JWT secret key, the token signature could be forged, enabling unauthorized access to privileged resources.
+
+Mitigation
+To defend against this vulnerability in real-world applications:
+
+Use strong, complex secret keys for signing JWTs.
+
+Rotate keys periodically and invalidate old tokens.
+
+Employ JWT libraries that enforce minimum key length and complexity.
