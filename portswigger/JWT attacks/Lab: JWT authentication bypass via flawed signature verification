@@ -1,0 +1,54 @@
+JWT Authentication Bypass via Flawed Signature Verification
+
+Lab Difficulty: Apprentice
+Vulnerability Type: Authentication Bypass / JWT “alg=none” Signature Flaw
+
+Summary
+This lab demonstrates a critical vulnerability in JWT signature verification, where the server insecurely accepts tokens with the alg header set to none,
+effectively bypassing signature validation. By exploiting this flaw, an attacker can craft unsigned tokens and impersonate privileged users, such as administrators.
+
+Objective
+Modify your JWT session token to access the admin panel at /admin by leveraging the alg=none vulnerability, then delete the user carlos to complete the lab.
+
+Technical Walkthrough
+1. Authentication and Token Inspection
+Logged in using the provided credentials: wiener:peter.
+
+Observed the session cookie was a JWT token during the post-login /my-account request.
+
+Decoded the JWT payload in Burp Suite’s Inspector panel and noted the sub claim contained the username (wiener).
+
+2. Attempting Admin Access
+Sent a request to /admin with the original token, confirming that only the administrator user can access this page.
+
+Forwarded this request to Burp Repeater for further manipulation.
+
+3. Exploiting the alg=none Vulnerability
+Edited the JWT payload to change the sub claim from wiener to administrator.
+
+Modified the JWT header to set the alg parameter to none, which signals no signature is required.
+
+Removed the signature portion of the JWT (keeping the trailing dot after the payload).
+
+Sent the modified token with the alg=none header and no signature.
+
+4. Successful Privilege Escalation
+The server accepted the unsigned token and granted access to the admin panel.
+
+Located the user deletion endpoint /admin/delete?username=carlos within the admin panel response.
+
+Sent a request to delete the user carlos, completing the lab successfully.
+
+Result
+By exploiting the insecure acceptance of the alg=none JWT algorithm, unauthorized access to admin functions was achieved without a valid signature.
+
+Mitigation
+To prevent this vulnerability in production environments:
+
+Reject JWTs that specify alg=none unless explicitly allowed and secured.
+
+Enforce strict signature verification on all received JWTs.
+
+Use strong cryptographic algorithms for signing tokens.
+
+Validate tokens using a trusted library that does not allow bypassing signature verification via alg=none.
