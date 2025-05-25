@@ -1,12 +1,16 @@
 JWT Authentication Bypass via jku Header Injection
+
 Lab Difficulty: Practitioner
 Vulnerability Type: JWT / Insecure Key Fetching
 
 Summary
-This lab illustrates an insecure implementation of JSON Web Token (JWT) authentication where the server trusts the jku (JSON Web Key Set URL) header without validating the domain. An attacker can exploit this behavior to host their own public key and forge a signed JWT that impersonates an admin user. This results in unauthorized access to the admin panel and account takeover.
+This lab illustrates an insecure implementation of JSON Web Token (JWT) authentication where the server trusts the jku (JSON Web Key Set URL) 
+header without validating the domain. An attacker can exploit this behavior to host their own public key and forge a signed JWT that impersonates an admin user. 
+This results in unauthorized access to the admin panel and account takeover.
 
 Objective
-Forge a valid JWT for the administrator user by injecting a custom JWK Set URL using the jku header, gain access to the /admin panel, and delete the user carlos to complete the lab.
+Forge a valid JWT for the administrator user by injecting a custom JWK Set URL using the jku header, gain access to the /admin panel,
+and delete the user carlos to complete the lab.
 
 Technical Walkthrough
 1. Initial Reconnaissance
