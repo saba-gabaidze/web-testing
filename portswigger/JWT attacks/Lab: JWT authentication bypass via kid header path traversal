@@ -1,84 +1,84 @@
-JWT Authentication Bypass via jku Header Injection
+JWT Authentication Bypass via kid Header Path Traversal
 
 Lab Difficulty: Practitioner
-Vulnerability Type: JWT / Insecure Key Fetching
+Vulnerability Type: JWT / Insecure Key Retrieval via Path Traversal
 
 Summary
-This lab illustrates an insecure implementation of JSON Web Token (JWT) authentication where the server trusts the jku (JSON Web Key Set URL) header without validating the domain. An attacker can exploit this behavior to host their own public key and forge a signed JWT that impersonates an admin user. This results in unauthorized access to the admin panel and account takeover.
+This lab demonstrates an insecure implementation of JWT verification where the server uses the kid parameter from the JWT header to retrieve the signing key directly from the filesystem.
+The lack of proper sanitization on the kid value allows an attacker to perform a path traversal attack by referencing arbitrary files on the server, such as /dev/null. By exploiting this, 
+an attacker can forge a valid JWT token signed with a weak or empty secret, impersonate the administrator, gain unauthorized access to the /admin panel, and perform privileged actions such as deleting a user.
 
 Objective
-Forge a valid JWT for the administrator user by injecting a custom JWK Set URL using the jku header, gain access to the /admin panel, and delete the user carlos to complete the lab.
+Forge a valid JWT token by exploiting the kid header path traversal vulnerability to access the /admin panel as the administrator user, 
+and delete the user carlos to complete the lab.
 
 Technical Walkthrough
 1. Initial Reconnaissance
-Logged in using the provided credentials: wiener:peter
+Log in using the provided credentials: wiener:peter.
 
-Sent the GET /my-account request to Burp Repeater
+Intercept the post-login request GET /my-account in Burp Repeater.
 
-Modified the request to access /admin, received a 403 Forbidden response, indicating access is restricted to the administrator user
+Modify the request path to /admin to check for admin access.
 
-2. Key Generation and JWK Hosting
-In Burp Suite, installed and opened the JWT Editor extension
+Confirm access is restricted (HTTP 403 Forbidden) for a non-admin user.
 
-Generated a new RSA key pair under the JWT Editor Keys tab
+2. Key Generation and Preparation
+Open Burp Suite’s JWT Editor extension (install via BApp store if needed).
 
-Copied the public key in JWK format
+Navigate to the Keys tab in JWT Editor.
 
-Navigated to the exploit server and replaced the body with an empty JWK set:
+Create a new Symmetric Key by clicking New Symmetric Key.
+
+Click Generate to create a random key in JWK format.
+
+Manually replace the k value (the secret key) with a Base64-encoded null byte (AA==), effectively simulating an empty or trivial signing key.
+
+Save the symmetric key for signing the JWT.
+
+Note: The null byte serves as a weak signing key, which works because the server ends up using the file contents (here /dev/null) as the key.
+
+3. Exploiting kid Path Traversal and Forging the JWT
+Return to the intercepted GET /admin request in Burp Repeater.
+
+Open the JWT Editor message editor tab to modify the JWT token.
+
+Change the JWT header’s kid parameter value to a path traversal sequence that resolves to /dev/null:
+
+../../../../../../../dev/null
+Modify the JWT payload sub claim to administrator.
+
+Click Sign, select the symmetric key with the null byte secret, and ensure the JWT header is not modified.
+
+The resulting JWT is now signed with the weak secret derived from /dev/null.
+
+4. Accessing Admin Panel and Deleting User
+Send the modified GET /admin request with the forged JWT.
+
+Observe successful access to the admin panel as the administrator.
+
+Locate the user deletion endpoint in the admin panel response, e.g.:
 
 
-{
-    "keys": []
-}
-Pasted the copied public JWK inside the keys array, resulting in:
+/admin/delete?username=carlos
+Send a request to delete the user carlos.
 
-
-{
-    "keys": [
-        {
-            "kty": "RSA",
-            "e": "AQAB",
-            "kid": "893d8f0b-061f-42c2-a4aa-5056e12b8ae7",
-            "n": "yy1wpYmffgXBxhAUJzHHocCuJolwDqql75ZWuCQ_cb33K2vh9mk6GPM9gNN4Y_qTVX67WhsN3JvaFYw"
-        }
-    ]
-}
-Stored the payload on the exploit server, making it publicly accessible
-
-3. Forging the JWT
-Went back to the JWT token used in the original authenticated session
-
-In the JWT Editor tab, replaced the kid with the custom key ID generated earlier
-
-Added a new jku parameter pointing to the exploit server URL hosting the JWK Set
-
-Modified the payload sub claim to administrator
-
-Re-signed the token using the private RSA key generated earlier
-
-Ensured the header was not modified, then sent the modified GET /admin request
-
-4. Accessing Admin Panel and Deleting Carlos
-Successfully gained access to the /admin panel
-
-Located the delete URL for user carlos: /admin/delete?username=carlos
-
-Sent a GET request to the endpoint
-
-Received confirmation that the user carlos was deleted
+Confirm successful deletion and lab completion.
 
 Result
-The administrator session was successfully forged using a malicious JWK Set hosted on a controlled domain. Unauthorized access to the admin panel was achieved, and the target user carlos was deleted, solving the lab.
+The lab is solved by abusing the insecure use of the kid parameter that allows path traversal on the server’s filesystem to fetch signing keys. This vulnerability enables forging a JWT token with an attacker-controlled key (in this case, the empty /dev/null file contents), leading to privilege escalation to administrator and unauthorized destructive actions.
 
 Mitigation
-To prevent this class of vulnerability in real-world applications:
+To prevent this vulnerability in production systems:
 
-Validate all remote URLs specified in JWT headers (e.g., jku) against a strict allowlist
+Never use user-controlled values like kid to directly load keys from the filesystem.
 
-Never trust user-supplied key sources without validating their origin
+Implement strict validation and sanitization on any key identifiers.
 
-Disable dynamic key loading or perform strict domain and TLS validation
+Use a secure key management system that associates kid values with server-side stored keys only.
 
-Prefer asymmetric JWT validation with static, server-managed keys
+Avoid dynamic key loading from file paths or untrusted sources.
 
-Consider disabling jku support if not absolutely required
+Implement allowlists or mappings between kid values and keys.
+
+Use asymmetric signing (e.g., RSA) with keys managed and stored securely on the server side, never loaded from user input paths.
+
