@@ -1,0 +1,101 @@
+JWT Authentication Bypass via Algorithm Confusion (No Exposed Key)
+Lab Difficulty: Expert
+Vulnerability Type: JWT / Algorithm Confusion / Authentication Bypass
+
+Summary
+This lab demonstrates how algorithm confusion in JWT implementations can lead to authentication bypass. The server uses asymmetric RSA keys (RS256) to sign tokens, but due to improper enforcement of the algorithm type, it's possible to trick the server into treating the token as if it were signed with a symmetric algorithm (HS256) using the public key as the HMAC secret. This critical flaw allows attackers to forge tokens and impersonate other users, including the administrator.
+
+Objective
+Obtain the server's public key using two valid JWTs, forge a token signed using HS256 with the public key as the secret, impersonate the administrator, access /admin, and delete the user carlos.
+
+Technical Walkthrough
+1. Obtain Two Valid JWTs
+Logged in with provided credentials:
+Username: wiener
+Password: peter
+
+Captured the GET /my-account request and noted the JWT session cookie.
+
+Logged out and back in again to obtain a second valid JWT.
+
+Saved both tokens for public key derivation.
+
+2. Derive the Server's Public Key (Using sig2n)
+Launched a terminal and ran the sig2n tool provided by PortSwigger using Docker:
+
+
+docker run --rm -it portswigger/sig2n <token1> <token2>
+The tool output one or more possible values of the server's public key (n), in both X.509 and PKCS1 Base64 formats, along with pre-signed tampered JWTs using each key.
+
+For each output X.509 key:
+
+Replaced the original JWT session cookie in the Burp Repeater request to /my-account with the tampered JWT.
+
+Sent the request.
+
+If response was HTTP 200, the public key used was correct.
+
+If response was a redirect to /login (HTTP 302), it was incorrect.
+
+Identified the correct X.509 key by checking which token gave valid access.
+
+3. Create a Symmetric Key Using the Public Key
+Copied the Base64-encoded X.509 public key (not the JWT) that matched the successful token.
+
+In Burp, navigated to the JWT Editor Keys tab and clicked New Symmetric Key.
+
+In the dialog:
+
+Clicked Generate to create a new key.
+
+Replaced the value of the k field with the Base64-encoded public key.
+
+Saved the key. This symmetric key will act as the HMAC secret to sign a forged token using HS256.
+
+4. Craft and Sign the Forged Token
+In Burp Repeater, changed the request path to /admin.
+
+Switched to the JWT message editor tab for the current request.
+
+Modified the JWT header:
+
+Set the alg field to HS256.
+
+Modified the JWT payload:
+
+Changed the sub claim to administrator.
+
+At the bottom, clicked Sign, selected the symmetric key created in the previous step, and chose Don't modify header.
+
+The JWT was now signed using the public RSA key as an HMAC secret under HS256.
+
+5. Exploit the Forged Token
+Sent the modified request with the forged JWT.
+
+Successfully gained access to the admin panel at /admin.
+
+Located the URL for deleting the user carlos:
+
+GET /admin/delete?username=carlos
+Sent the request and successfully deleted carlos, completing the lab.
+
+Result
+The lab was successfully solved by exploiting JWT algorithm confusion, using the server’s public RSA key as the HMAC secret to forge a token signed with HS256.
+
+Root Cause
+The server accepted JWTs signed with both asymmetric (RS256) and symmetric (HS256) algorithms.
+
+It failed to verify that the correct algorithm was used, enabling an algorithm confusion attack.
+
+This flaw allowed a public key (intended only for verification in RSA) to be misused as a shared secret key in HMAC.
+
+Mitigation
+To prevent such vulnerabilities:
+
+Explicitly define the accepted algorithm (e.g., enforce RS256 if that’s what the server is configured to use).
+
+Never allow users to override or supply the algorithm value in JWTs—validate it strictly on the server side.
+
+Separate keys for different algorithms (i.e., never use the same key for both HMAC and RSA).
+
+Use well-tested, standard libraries that handle JWT parsing and validation securely.
