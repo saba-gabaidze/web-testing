@@ -1,0 +1,84 @@
+JWT Authentication Bypass via Algorithm Confusion
+
+Lab Difficulty: Expert
+Vulnerability Type: JWT / Algorithm Confusion
+
+Summary
+This lab demonstrates an algorithm confusion vulnerability in JWT (JSON Web Token) authentication. The application uses RSA (asymmetric) signing by default but fails to enforce strict algorithm validation. This allows an attacker to change the algorithm to HMAC (symmetric) and sign tokens using the server’s public key as the HMAC secret, thus forging valid tokens and bypassing authentication checks.
+
+Objective
+Forge a JWT with administrative privileges by exploiting algorithm confusion, access the admin panel at /admin, and delete the user carlos to complete the lab.
+
+Technical Walkthrough
+1. Reconnaissance
+Logged in using provided credentials: wiener:peter
+
+Sent a GET /my-account request and intercepted it in Burp Suite
+
+Modified the path to /admin and observed a 302 redirect (unauthorized)
+
+Discovered that JWT is used for session management and that tokens are signed using RSA (asymmetric signing)
+
+2. Retrieving the Server’s Public Key
+Navigated to the standard endpoint:
+
+
+GET /jwks.json
+Retrieved a JWK Set containing a single public RSA key
+
+Extracted the JWK object from inside the keys array for later use
+
+3. Setting Up Malicious Keys in Burp Suite
+Opened the JWT Editor Keys tab in Burp
+
+Created a new RSA key by importing the retrieved JWK
+
+Copied the public key as PEM
+
+Used Burp’s Decoder to Base64-encode the PEM string
+
+4. Generating a Symmetric Key Using Public Key as Secret
+Created a new Symmetric Key in the JWT Editor tab
+
+Replaced the k value in the key with the Base64-encoded PEM
+
+Saved the symmetric key, effectively treating the server's public key as an HMAC secret
+
+5. Crafting the Forged JWT
+Returned to the GET /admin request in Repeater
+
+Switched to the JWT tab and performed the following modifications:
+
+Changed JWT header’s alg to HS256
+
+Updated payload sub to administrator
+
+Clicked Sign, selected the symmetric key (with public key as HMAC secret)
+
+Ensured "Don't modify header" was selected, then confirmed signing
+
+6. Exploitation
+Sent the modified request to /admin with the forged JWT
+
+Access to admin panel was granted
+
+Identified the link to delete the user carlos:
+
+
+GET /admin/delete?username=carlos
+Sent the request and successfully deleted the user
+
+Result
+The lab was successfully completed by forging a JWT token via algorithm confusion and exploiting the trust in the alg header combined with misuse of the RSA public key as an HMAC secret.
+
+Mitigation
+To prevent JWT algorithm confusion attacks in real-world applications:
+
+Enforce strict algorithm validation: Always validate that the algorithm in the JWT header matches the expected one (e.g., RS256)
+
+Ignore the alg header from incoming tokens and enforce algorithm choice on the server
+
+Do not allow dynamic or user-defined algorithms in token verification logic
+
+Use well-maintained JWT libraries that prevent misuse or algorithm downgrading
+
