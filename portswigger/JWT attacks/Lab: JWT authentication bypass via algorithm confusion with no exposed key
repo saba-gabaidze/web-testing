@@ -1,9 +1,12 @@
 JWT Authentication Bypass via Algorithm Confusion (No Exposed Key)
+
 Lab Difficulty: Expert
 Vulnerability Type: JWT / Algorithm Confusion / Authentication Bypass
 
 Summary
-This lab demonstrates how algorithm confusion in JWT implementations can lead to authentication bypass. The server uses asymmetric RSA keys (RS256) to sign tokens, but due to improper enforcement of the algorithm type, it's possible to trick the server into treating the token as if it were signed with a symmetric algorithm (HS256) using the public key as the HMAC secret. This critical flaw allows attackers to forge tokens and impersonate other users, including the administrator.
+This lab demonstrates how algorithm confusion in JWT implementations can lead to authentication bypass. The server uses asymmetric RSA keys (RS256) to sign tokens,
+but due to improper enforcement of the algorithm type, it's possible to trick the server into treating the token as if it were signed with a symmetric algorithm (HS256)
+using the public key as the HMAC secret. This critical flaw allows attackers to forge tokens and impersonate other users, including the administrator.
 
 Objective
 Obtain the server's public key using two valid JWTs, forge a token signed using HS256 with the public key as the secret, impersonate the administrator, access /admin, and delete the user carlos.
