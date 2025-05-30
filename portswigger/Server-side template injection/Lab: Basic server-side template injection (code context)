@@ -1,0 +1,87 @@
+Basic Server-Side Template Injection (Code Context) – Tornado
+
+Lab Difficulty: Practitioner
+Vulnerability Type: Server-Side Template Injection (SSTI) / Remote Code Execution
+
+Summary
+This lab demonstrates a server-side template injection vulnerability in a Tornado-based web application.
+The injection occurs within a code context due to improper handling of user-controllable template variables. By breaking
+out of the intended expression context, an attacker can inject arbitrary Python code into the template engine and achieve remote
+code execution.
+
+Objective
+Exploit the Tornado-based SSTI vulnerability to execute arbitrary Python code and delete the file /home/carlos/morale.txt.
+
+Technical Walkthrough
+1. Setup and Observation
+Log into the application using the provided credentials:
+
+Username: wiener  
+Password: peter  
+Post a comment on any blog post to later observe changes in the display name.
+
+Navigate to the "My account" page, where the application allows changing how your name is displayed with the options:
+
+user.name
+
+user.first_name
+
+user.nickname
+
+Changing this setting sends a POST request to:
+
+
+POST /my-account/change-blog-post-author-display
+The parameter of interest is:
+
+blog-post-author-display
+2. Initial SSTI Test
+According to Tornado documentation, template expressions use {{ expression }}.
+
+Inject the following value to test expression execution:
+
+user.name}}{{7*7}}
+In Burp Suite Repeater, modify the request as:
+
+blog-post-author-display=user.name}}{{7*7}}
+Reload the blog post page containing your comment. If the name now shows something like Peter Wiener49}}, this confirms that SSTI is present and working in code context.
+
+3. Achieve Code Execution
+Tornado templates support {% somePythonCode %} for executing arbitrary Python code.
+
+Use Python's os module to run system commands.
+
+The payload becomes:
+
+
+}}{% import os %}{{ os.system('rm /home/carlos/morale.txt')
+URL-encoded version:
+
+blog-post-author-display=user.name}}{%25+import+os+%25}{{os.system('rm%20/home/carlos/morale.txt')
+Send this in the POST /my-account/change-blog-post-author-display request via Burp Repeater.
+
+4. Trigger Execution
+Reload the blog post where you previously posted a comment. The name rendering triggers the vulnerable Tornado template engine to evaluate
+the injected payload and execute the rm command, deleting the target file.
+
+Result
+Successfully solved the lab by exploiting a code-context server-side template injection vulnerability in Tornado. The payload led to
+arbitrary code execution and deletion of the file /home/carlos/morale.txt.
+
+Root Cause
+The application allowed unsanitized user input to be embedded within a template in code execution context. Improper separation between template logic
+and user data allowed injection of Python code, which was interpreted and executed by the Tornado template engine.
+
+Mitigation
+To prevent server-side template injection:
+
+Do not allow user input to be directly embedded in templates, especially in code or logic contexts.
+
+Use context-aware encoding and enforce strict variable substitution without executing arbitrary code.
+
+Avoid exposing raw template variables to user control.
+
+Sanitize and validate all user inputs.
+
+Use safer templating engines that do not support execution of arbitrary code.
+
