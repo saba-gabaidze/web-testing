@@ -1,0 +1,83 @@
+Server-Side Template Injection Using Documentation
+
+Lab Difficulty: Practitioner
+Vulnerability Type: Server-Side Template Injection (SSTI) / Remote Code Execution
+
+Summary
+This lab demonstrates a server-side template injection vulnerability using the Freemarker template engine. By exploiting its unsafe usage, an attacker can
+inject and execute arbitrary code through a product description template. Leveraging Freemarker's capabilities, we achieve code execution and delete a sensitive
+file on the server.
+
+Objective
+Exploit the SSTI vulnerability in Freemarker to execute a command that deletes the file /home/carlos/morale.txt.
+
+Technical Walkthrough
+1. Initial Access
+Log into the application using the provided credentials:
+
+
+Username: content-manager  
+Password: C0nt3ntM4n4g3r  
+Navigate to the product administration section and edit a product’s description template.
+
+2. Template Syntax Identification
+The template engine uses syntax in the form of:
+
+${someExpression}
+Modify a part of the template or inject an invalid reference, such as:
+
+${foobar}
+Save the template. When rendered, an error appears indicating the usage of Freemarker as the underlying template engine.
+
+3. Documentation Review
+Refer to the official Freemarker documentation to research the engine's capabilities.
+
+In the FAQs section, identify a question about the security implications of allowing users to upload templates. 
+The answer highlights the new() built-in as a serious security risk.
+
+Review the Built-in Reference for ?new(), which allows creating arbitrary Java objects that implement the TemplateModel interface.
+
+Browse the JavaDoc for Freemarker and identify a class named:
+
+freemarker.template.utility.Execute
+This class is designed to execute arbitrary shell commands.
+
+4. Payload Construction
+Based on Freemarker syntax and the vulnerable feature, construct the following payload:
+
+<#assign ex="freemarker.template.utility.Execute"?new()> ${ ex("rm /home/carlos/morale.txt") }
+This code performs the following:
+
+Assigns the Execute class to a variable.
+
+Instantiates it using ?new().
+
+Executes the shell command rm /home/carlos/morale.txt.
+
+5. Exploitation
+Remove any previously injected invalid code.
+
+Insert the above payload into the product description template.
+
+Save the template.
+
+Visit the corresponding product page to trigger rendering and execute the injected template logic.
+
+Result
+The command is executed on the server, and the target file /home/carlos/morale.txt is deleted, thereby solving the lab.
+
+Root Cause
+The vulnerability arises from exposing a dynamic Freemarker template to user control without restricting access to dangerous features like ?new() and critical classes such as Execute. The application fails to properly sandbox the template engine, allowing arbitrary code execution.
+
+Mitigation
+To prevent SSTI in Freemarker or any other template engine:
+
+Disable or restrict dangerous built-ins like ?new() if not explicitly needed.
+
+Never allow end users to define or modify templates in a production environment.
+
+Use strict sandboxing mechanisms to isolate template execution from sensitive application logic.
+
+Implement input validation and output encoding.
+
+Keep template engine libraries updated and review their security guidance regularly.
