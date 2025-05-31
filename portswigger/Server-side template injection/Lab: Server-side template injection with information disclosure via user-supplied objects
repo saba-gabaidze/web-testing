@@ -1,0 +1,68 @@
+Exploiting Server-Side Template Injection via User-Supplied Objects (SSTI)
+
+Lab Difficulty: Practitioner
+Vulnerability Type: Server-Side Template Injection / Information Disclosure / Insecure Template Context
+
+Summary
+This lab demonstrates a Server-Side Template Injection (SSTI) vulnerability caused by insecure handling of user-supplied objects in a Django template. By injecting template expressions, an attacker can enumerate accessible variables and ultimately leak sensitive framework settings. Specifically, it is possible to retrieve Django’s internal SECRET_KEY through template rendering, which could lead to serious security consequences like session forgery or full framework compromise.
+
+Objective
+Exploit SSTI to access the Django template context, extract the value of the internal settings.SECRET_KEY, and submit it to solve the lab.
+
+Technical Walkthrough
+1. Log in to the Application
+Logged in using the credentials provided:
+
+
+Username: content-manager
+Password: C0nt3ntM4n4g3r
+Gained access to a content management interface with the ability to edit product templates.
+
+2. Identify Template Injection
+Edited the product description and inserted a malformed template string to probe for template evaluation behavior:
+
+${{<%[%'"}}%\
+Saved the template. The resulting error message exposed a template rendering exception, confirming a template injection vulnerability and revealing that the backend uses Django Templates:
+
+TemplateSyntaxError: Could not parse the remainder...
+3. Enumerate Context via Built-in Debug Tag
+Replaced the invalid syntax with a known built-in Django tag:
+
+{% debug %}
+Saved the template again. The resulting page printed a detailed template context dump, including:
+
+settings: <django.conf.LazySettings object at 0x...>
+Confirmed that the settings object is accessible within the template context.
+
+4. Extract the Secret Key
+Removed {% debug %} and replaced it with:
+
+{{ settings.SECRET_KEY }}
+Saved the template. The page output the actual SECRET_KEY used by the Django application, e.g.:
+
+django-insecure-kf38fj392hdkfw3...
+5. Submit the Solution
+Copied the leaked SECRET_KEY and submitted it via the lab interface.
+
+Lab marked as Solved.
+
+Result
+Successfully exploited a server-side template injection vulnerability by injecting trusted template expressions. Accessed internal Django objects, retrieved the sensitive SECRET_KEY, and used it to complete the lab challenge.
+
+Root Cause
+The server trusted and rendered user-supplied objects in Django templates without restricting access to internal context variables. This allowed:
+
+Use of the {% debug %} tag to enumerate all accessible context variables
+
+Direct access to sensitive server-side configurations via expressions like {{ settings.SECRET_KEY }}
+
+Mitigation
+To prevent such vulnerabilities:
+
+Never trust user input in templates. Avoid rendering user-controlled content directly.
+
+Restrict context variables exposed to templates — whitelist only what’s necessary.
+
+Disable debug mode in production environments to prevent abuse of tags like {% debug %}.
+
+Sanitize template expressions and prevent access to sensitive internal objects like settings.
