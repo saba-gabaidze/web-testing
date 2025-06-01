@@ -1,0 +1,69 @@
+Server-Side Template Injection (SSTI) with Sandbox Bypass – Freemarker
+Lab Difficulty: Expert
+Vulnerability Type: Server-Side Template Injection (SSTI) / Sandbox Bypass / Remote Code Execution
+
+Summary
+This lab demonstrates a complex server-side template injection vulnerability in an application using the Freemarker template engine. Although the engine is configured with a sandbox intended to restrict dangerous operations, improper sandbox implementation allows an attacker to bypass these restrictions via Java reflection. By leveraging the exposed object’s .class.protectionDomain.classLoader, an attacker can dynamically load critical classes, instantiate helper objects, and execute arbitrary commands or read sensitive files on the server.
+
+Objective
+Exploit the Freemarker SSTI vulnerability to break out of the sandbox, read the contents of the file /home/carlos/my_password.txt, and submit the extracted password to solve the lab.
+
+Technical Walkthrough
+1. Initial Access and Reconnaissance
+Log in to the application using provided credentials:
+
+Username: content-manager  
+Password: C0nt3ntM4n4g3r
+Edit or inject payloads into a template that has access to an exposed object, commonly the product object.
+Confirm the template engine is Freemarker by triggering typical syntax errors or testing template expressions.
+
+2. Confirming Template Injection
+Use Freemarker syntax ${product.getClass()} to verify that template expressions evaluate and you have access to object reflection.
+
+3. Understanding the Sandbox and Reflection Bypass
+Freemarker’s sandbox restricts direct dangerous calls, but reflection on Java objects is still possible. Key observations:
+
+.class property gives access to an object’s class metadata.
+
+.protectionDomain acts as a security context wrapper.
+
+.classLoader allows dynamic loading of arbitrary Java classes.
+
+This chain provides a pathway to load and invoke methods from restricted Java classes that enable command execution or file reading.
+
+4. Using ObjectWrapper for Dynamic Invocation
+Freemarker’s ObjectWrapper.DEFAULT_WRAPPER is used to instantiate and interact with Java objects dynamically inside the template.
+
+By loading the class freemarker.template.utility.Execute and creating an instance with the wrapper, you gain the ability to run arbitrary system commands.
+
+Example payload snippet:
+
+
+<#assign classloader=product.class.protectionDomain.classLoader>
+<#assign owc=classloader.loadClass("freemarker.template.ObjectWrapper")>
+<#assign dwf=owc.getField("DEFAULT_WRAPPER").get(null)>
+<#assign ec=classloader.loadClass("freemarker.template.utility.Execute")>
+${dwf.newInstance(ec,null)("cat /home/carlos/my_password.txt")}
+
+5. Executing the Payload
+Inject the payload into the template and save. The output contains the contents of the file, often as decimal ASCII bytes that must be converted to readable text.
+
+Result
+Successfully broke out of the sandbox and read the sensitive password file. This confirms arbitrary code execution through server-side template injection in a sandboxed Freemarker environment.
+
+Root Cause
+The application relied on Freemarker’s sandbox to prevent unsafe operations but did not block reflective access through .class.protectionDomain.classLoader. This flaw allowed attackers to dynamically load Java classes, bypass sandbox restrictions, and execute arbitrary system commands or file I/O, leading to a severe SSTI vulnerability.
+
+Mitigation
+Avoid exposing sensitive Java objects to templates or sanitize the accessible object properties thoroughly.
+
+Harden the sandbox configuration to block reflective access or disable dangerous classes/methods.
+
+Use strict input validation and context-aware output encoding.
+
+Restrict template engines to safe subsets with no access to Java reflection or execution utilities.
+
+Run template engines with minimal permissions to reduce impact of exploitation.
+
+Regularly update template engine versions and review security advisories.
+
