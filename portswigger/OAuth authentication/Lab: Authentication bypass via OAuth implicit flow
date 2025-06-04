@@ -1,0 +1,85 @@
+Authentication Bypass via OAuth Implicit Flow
+
+Lab Difficulty: Apprentice
+Vulnerability Type: OAuth Misconfiguration / Authentication Bypass
+Lab Link: PortSwigger Lab
+
+Summary
+This lab demonstrates how an insecure OAuth implicit flow implementation can be abused to authenticate as another user without knowing their password. The attacker manipulates the POST request that completes the OAuth login process to impersonate any arbitrary user.
+
+Objective
+Exploit a flaw in the OAuth implementation to log in as Carlos (carlos@carlos-montoya.net) without his credentials.
+
+Technical Walkthrough
+1. Reconnaissance
+Logged into the application using the provided social login credentials:
+
+Username: wiener
+
+Password: peter
+
+Navigated to My account, which redirected to an external OAuth provider for login. After authorizing access, the application redirected back to the blog with an access token.
+
+2. Observing the OAuth Flow
+With Burp Suite running, captured the OAuth login flow in Proxy > HTTP history. Noted the following key steps:
+
+The browser is redirected to the OAuth authorization endpoint:
+
+
+GET /auth?client_id=...&redirect_uri=...&response_type=token
+After granting access, the user is redirected back to the blog with an access token in the fragment:
+
+
+https://<blog-url>/#access_token=<TOKEN>
+JavaScript extracts the token and sends a POST request to the blog's internal endpoint to finalize the login:
+
+
+POST /authenticate HTTP/1.1
+Host: <blog-url>
+Content-Type: application/json
+
+{
+  "access_token": "<TOKEN>",
+  "email": "wiener@normal-user.net",
+  ...
+}
+3. Authentication Bypass
+Sent the POST /authenticate request to Burp Repeater and modified the email field to:
+
+
+"email": "carlos@carlos-montoya.net"
+Sent the request.
+
+Observation: The response returned a 200 OK and set session cookies—indicating successful authentication.
+
+4. Logging In as Carlos
+Right-clicked the modified POST request in Repeater and selected:
+
+
+Request in browser > In original session
+Copied and visited the generated URL in the browser.
+
+Result: Logged in successfully as Carlos. The lab was marked as solved.
+
+Result
+The lab was completed by bypassing the OAuth-based login flow and impersonating another user (Carlos) by altering the email in the POST /authenticate request.
+
+Mitigation
+To prevent such vulnerabilities:
+
+Do not trust client-side user data: Always validate the access token server-side by querying the OAuth provider.
+
+Ignore client-supplied emails or usernames during authentication. The application must retrieve the user’s email directly from the OAuth provider’s API.
+
+Use Authorization Code Flow (with PKCE) instead of the Implicit Flow for better security.
+
+Validate access tokens by verifying:
+
+Signature (if JWT),
+
+Token audience and issuer,
+
+Expiry time,
+
+User identity from a trusted source.
+
