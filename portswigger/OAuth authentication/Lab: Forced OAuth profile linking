@@ -1,0 +1,75 @@
+Forced OAuth Profile Linking
+
+Lab Difficulty: Practitioner
+Vulnerability Type: OAuth CSRF / Forced OAuth Linking
+Lab Link: PortSwigger Lab
+
+Summary
+This lab explores a critical vulnerability in an OAuth implementation where the client application allows users to attach social media profiles
+to their existing accounts without proper CSRF protection. Due to the missing state parameter in the OAuth authorization request, an attacker
+can perform a CSRF attack to forcibly link their own social media profile to another user’s account, such as the admin’s account.
+
+Objective
+Exploit the lack of CSRF protection in the OAuth flow to attach your social media profile to the administrator’s blog account. Then log in as the administrator via the linked social profile and delete a user named carlos.
+
+Technical Walkthrough
+1. Understanding the OAuth Linking Flow
+Logged in with provided credentials:
+
+Blog website account: wiener:peter 
+
+Social media profile: peter.wiener:hotdog
+
+Accessed the "My account" page and noted the option to attach a social media profile via OAuth.
+
+Using Burp Proxy, observed the OAuth flow when clicking Attach a social profile:
+
+Redirected to the social media login page.
+
+Completed OAuth authorization and returned to the blog website.
+
+Confirmed the profile was linked by logging out and logging back in with the social media option.
+
+2. Identifying Missing CSRF Protection
+Analyzed the OAuth authorization request (GET /auth?...) and observed the absence of a state parameter. This omission makes the OAuth linking process vulnerable to CSRF attacks because the authorization code can be replayed or forced by a third party without proper verification.
+
+3. Capturing a Valid Authorization Code
+Enabled Burp interception and repeated the Attach a social profile process.
+
+Intercepted the request to:
+
+
+GET /oauth-linking?code=[authorization_code]
+Copied the full URL containing the authorization code, then dropped the intercepted request to prevent code reuse and keep it valid.
+
+4. Crafting the CSRF Exploit
+Logged out from the blog website and created an HTML payload hosted on the exploit server with an iframe pointing to the intercepted URL:
+
+
+<iframe src="https://YOUR-LAB-ID.web-security-academy.net/oauth-linking?code=STOLEN-CODE"></iframe>
+Delivered this exploit to the victim (the admin), who is known to have an active session on the blog.
+
+When the admin’s browser loads this iframe, the OAuth flow completes, linking the attacker’s social media profile to the admin’s account.
+
+5. Gaining Admin Access
+Returned to the blog website and selected Log in with social media.
+
+Confirmed instant login as the administrator due to the forced profile linking.
+
+Navigated to the admin panel and deleted the user carlos to complete the lab.
+
+Result
+Successfully exploited OAuth flow CSRF vulnerability to forcibly link an attacker-controlled social media profile to the administrator’s account, gaining unauthorized access and performing administrative actions.
+
+Mitigation
+To prevent this type of attack:
+
+Always include a securely generated state parameter in OAuth authorization requests to protect against CSRF.
+
+Validate the state parameter on the OAuth callback to ensure request integrity.
+
+Implement additional anti-CSRF tokens and checks during sensitive account linking operations.
+
+Monitor for unusual OAuth linking activity and alert users of new linkages.
+
+Educate users and administrators on the risks of active sessions and cross-site attacks.
