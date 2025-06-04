@@ -1,0 +1,87 @@
+SSRF via OpenID Dynamic Client Registration
+
+Lab Difficulty: Practitioner
+Vulnerability Type: Server-Side Request Forgery (SSRF) / OAuth Dynamic Client Registration
+Lab Link: PortSwigger Lab
+
+Summary
+This lab demonstrates how the OAuth service’s dynamic client registration endpoint can be abused to perform SSRF attacks. By controlling the logo_uri property during client registration, an attacker can force the OAuth server to fetch arbitrary URLs, including internal metadata endpoints. This allows extraction of sensitive information such as cloud provider credentials.
+
+Objective
+Exploit SSRF by registering a malicious OAuth client with a crafted logo_uri that points to the cloud provider’s internal metadata service at:
+
+http://169.254.169.254/latest/meta-data/iam/security-credentials/admin/
+Extract the secret access key from the OAuth provider’s cloud environment to solve the lab.
+
+Technical Walkthrough
+1. Dynamic Client Registration Discovery
+Logged in with provided credentials:
+
+Username: wiener
+
+Password: peter
+
+Proxied traffic with Burp Suite and visited the OAuth server’s OpenID configuration URL:
+
+https://oauth-YOUR-OAUTH-SERVER.oauth-server.net/.well-known/openid-configuration
+Identified the client registration endpoint at /reg.
+
+2. Registering a New Client Application
+Using Burp Repeater, crafted a POST request to register a new client application with minimal required parameters:
+
+POST /reg HTTP/1.1
+Host: oauth-YOUR-OAUTH-SERVER.oauth-server.net
+Content-Type: application/json
+
+{
+    "redirect_uris" : [
+        "https://example.com"
+    ],
+}
+
+Sent the request successfully without authentication, receiving a response containing a new client_id and metadata.
+
+3. Testing SSRF via logo_uri Property
+The OAuth flow’s consent page loads the client application logo from:
+
+
+GET /client/CLIENT-ID/logo
+The OpenID specification allows clients to specify a logo_uri during registration, which is fetched by the server.
+
+Modified the original registration request to include a logo_uri set to a Burp Collaborator URL to test SSRF:
+
+{
+  "redirect_uris": [
+    "https://example.com"
+  ],
+  "logo_uri": "https://<BURP-COLLABORATOR-SUBDOMAIN>"
+}
+Sent the request and noted the server made a request to the Collaborator URL, confirming SSRF capability.
+
+4. Exploiting SSRF to Access Internal Metadata
+Replaced the logo_uri in the registration request with the internal metadata endpoint URL:
+
+"http://169.254.169.254/latest/meta-data/iam/security-credentials/admin/"
+Registered the client again, obtaining a new client_id.
+
+Sent a GET request to:
+
+/client/NEW-CLIENT-ID/logo
+Received a response containing sensitive cloud environment metadata, including the secret access key.
+
+Result
+Successfully exploited SSRF via the logo_uri parameter in dynamic client registration to retrieve the OAuth provider’s internal cloud credentials, completing the lab challenge.
+
+Mitigation
+To defend against this vulnerability:
+
+Validate and sanitize all URLs supplied during client registration, especially for properties that trigger server-side fetches (e.g., logo_uri).
+
+Implement strict allowlisting for client-provided URLs.
+
+Prevent server-side requests to private IP ranges and internal metadata services.
+
+Enforce authentication and authorization checks on dynamic client registration endpoints.
+
+Monitor and log outbound requests initiated by the server for suspicious activity.
+
