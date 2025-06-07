@@ -1,0 +1,31 @@
+Lab Difficulty: Apprentice
+Vulnerability: Access Control / Data Leakage via Redirect
+
+Summary
+This lab shows how an access control issue can leak sensitive info even when the app tries to redirect you away. Basically, the user ID is controlled by a request parameter, and if you change it, the app still leaks the API key for that user in the body of the redirect response. So, by swapping the ID to “carlos,” you get his API key even though you’re being sent back to the home page.
+
+Steps Taken
+Logged in with the provided creds:
+wiener : peter
+
+Hit the account page to see what was going on there.
+
+Intercepted the request with Burp Suite and sent it to Repeater to mess with it.
+
+Changed the id parameter from my own user ID to carlos and sent the request.
+
+The response redirected me to the homepage, so I thought maybe nothing was up… but the response body actually contained carlos’s API key.
+
+Grabbed the API key and submitted it to solve the lab.
+
+Root Cause
+The app trusted the id parameter from the request without properly checking if you should see that user’s info. Even though it tried to hide the info by redirecting, it still leaked the sensitive data in the response body. Classic data leakage caused by weak access controls.
+
+Fixes and Mitigation
+Don’t trust user-controlled parameters to fetch sensitive data without verifying permissions on the server side.
+
+Don’t leak sensitive info in redirect responses or anywhere else.
+
+Always enforce access control checks before sending back any user data.
+
+Make sure redirects don’t accidentally expose data in their bodies.
