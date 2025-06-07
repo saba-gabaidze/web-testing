@@ -1,1 +1,48 @@
+Unprotected Admin Functionality
 
+Lab Difficulty: Apprentice
+Vulnerability Type: Insecure Direct Object Reference (IDOR) / Unprotected Admin Panel
+
+Summary
+This lab demonstrates the risks of leaving sensitive admin functionality unprotected. The admin panel is exposed without authentication or access control, allowing attackers to access administrative features directly by navigating to a disclosed URL. The lab involves discovering the admin panel path through information leakage in the robots.txt file, accessing the admin panel, and deleting a user named "carlos".
+
+Objective
+Access the unprotected admin panel, locate the functionality to delete user "carlos," and remove this user to complete the lab.
+
+Technical Walkthrough
+1. Discovering the Admin Panel URL
+
+Navigate to the lab URL and append /robots.txt to the URL (e.g., https://<lab-url>/robots.txt).
+
+Review the contents of robots.txt, which contains a Disallow directive revealing the path to the admin panel, e.g., /administrator-panel.
+
+2. Accessing the Admin Panel
+
+Replace /robots.txt in the browser’s address bar with the discovered admin path /administrator-panel.
+
+Load the admin panel URL directly without authentication or authorization checks.
+
+3. Deleting the User "carlos"
+
+Within the admin panel interface, locate the option or functionality to manage users.
+
+Find the user "carlos" and perform the delete action.
+
+Verify that the user has been successfully removed, completing the lab objective.
+
+Result
+The lab is solved by exploiting an unprotected admin panel that is accessible without authentication. Using the information disclosed in robots.txt, the admin panel URL was discovered and accessed directly. Deleting the user "carlos" via the admin interface demonstrates the impact of leaving sensitive functionality exposed.
+
+Root Cause
+The server exposes sensitive administrative functionality without any access control or authentication mechanisms. Additionally, information disclosure via the robots.txt file reveals the path to the admin panel, facilitating unauthorized access.
+
+Mitigation
+To prevent such vulnerabilities:
+
+Protect admin panels and sensitive endpoints with strong authentication and authorization controls.
+
+Avoid disclosing sensitive URLs or paths in publicly accessible files such as robots.txt.
+
+Implement role-based access control (RBAC) and enforce strict session management for administrative functions.
+
+Regularly audit the application for exposed endpoints and restrict access based on the principle of least privilege.
