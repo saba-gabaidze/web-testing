@@ -1,0 +1,53 @@
+Multi-step process with no access control on one step – Privilege Escalation via Broken Access Control
+
+Lab Difficulty: Practitioner
+Vulnerability: Insecure access control in a multi-step process (Privilege Escalation)
+
+Summary
+This lab has an admin panel with a two-step process to promote users—but only the first step is properly locked down. The second step (the actual promotion request) doesn’t check who’s sending it. That means you can take a legitimate promotion request, swap in your own username, and become an admin without being one.
+
+Steps Taken
+First, I logged in using the administrator:admin credentials just to look around.
+
+Went to the /admin panel. In there, there’s an option to promote users. I chose carlos and intercepted the promotion process with Burp Suite.
+
+When I clicked promote, Burp showed me a request like this:
+
+POST /admin-roles
+Cookie: session=ADMIN_SESSION_ID
+
+username=carlos&action=promote
+So this is the request that actually performs the role change.
+
+Sent that to Burp Repeater for later.
+
+Now, I opened a new private/incognito window and logged in as the regular user: wiener:peter
+
+Grabbed my new session cookie for this non-admin user and went back to that Repeater request.
+
+Replaced the cookie with my wiener session, and swapped out the username:
+
+POST /admin-roles
+Cookie: session=WIENER_SESSION_ID
+
+username=wiener&action=promote
+Hit Send.
+
+No error. No access denied. Just a 200 OK.
+
+To check if it worked, I went to /admin again—and boom, it loaded. I had admin access.
+
+Lab complete.
+
+Root Cause
+The app protects the UI and the first step of the role change, but not the actual endpoint doing the work. The final promotion request doesn’t validate whether the sender has admin rights—it just trusts that if the request was made, it’s legit.
+
+Fixes and Mitigation
+Don’t just protect the interface—protect the backend too.
+
+Every sensitive action (like changing roles) needs strict access checks.
+
+Backend should always verify the role of the logged-in user before letting them perform admin actions.
+
+Never assume that just because the UI flow was followed, the user has permission to hit the endpoint.
+
