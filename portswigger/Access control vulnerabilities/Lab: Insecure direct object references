@@ -1,0 +1,47 @@
+Lab: Insecure Direct Object References (IDOR) – Chat Transcript Exposure
+
+Lab Difficulty: Apprentice
+Vulnerability: Insecure Direct Object Reference (IDOR)
+
+Summary
+This lab shows a basic example of IDOR, where user chat logs are stored as individual text files on the server and accessed through predictable URLs. No access control, no checks—just good ol’ sequential filenames. So if you tweak the URL, you can access someone else’s transcript and possibly steal sensitive info. That’s exactly how I found carlos’s password.
+
+Steps Taken
+Started off by launching the lab and checking things out. Nothing too exciting at first glance.
+
+Clicked on the Live chat tab, sent a quick message like “hi” or whatever, then hit View transcript once it appeared.
+
+That opened a URL like this:
+
+
+/files/transcript/6.txt
+Pretty standard-looking. And the filename? Just a number. Felt like a classic case of “what if I change this number?”
+
+So I tried bumping it down to 1.txt:
+
+
+/files/transcript/1.txt
+this one had an actual conversation in it. Scanned through the text and saw something interesting: a password. Looked like someone accidentally (or lazily) typed it into chat.
+
+Went back to the login page, popped in:
+
+Username: carlos
+
+Password: (whatever I found in the transcript—won’t spoil it)
+
+Logged in successfully. Lab marked as solved.
+
+Root Cause
+The app was storing chat logs as static text files and giving each one a predictable number in the filename. There was zero access control. Anyone who can guess a valid transcript filename (which is easy when it’s just numbers) can view someone else’s private messages.
+
+Fixes and Mitigation
+Never use predictable object references (like numeric filenames) for sensitive files.
+
+Always enforce access controls on the server before serving files.
+
+Consider using random UUIDs for filenames that tie back to authenticated users.
+
+Sanitize and restrict access based on user sessions—only let users see their own stuff.
+
+Don’t store sensitive data (like passwords) in chat transcripts. Ever.
+
