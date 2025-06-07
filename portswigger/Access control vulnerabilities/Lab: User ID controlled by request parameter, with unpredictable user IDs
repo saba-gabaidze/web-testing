@@ -1,0 +1,30 @@
+Lab: User ID controlled by request parameter, with unpredictable user IDs
+
+Difficulty: Apprentice
+Vulnerability: Horizontal Privilege Escalation via Insecure Direct Object Reference (IDOR)
+
+Summary
+This one’s a horizontal privilege escalation lab where the app identifies users by these long GUIDs instead of simple numbers. The user ID is sent as a request parameter, and the server doesn’t properly check if you should access that user’s data. So, by swapping your own user ID with someone else’s (Carlos’s GUID), you can grab his API key. Pretty straightforward once you find the right ID.
+
+Steps Taken
+Logged in as usual with the provided creds:
+wiener : peter
+
+Looked around for Carlos’s user ID—found a blog post by him, clicked it, and noticed the URL had this long GUID thing. Jotted that down.
+
+Went to my own account page, which also uses an "id" parameter in the request.
+
+Intercepted the request in Burp and swapped out my own ID with Carlos’s GUID.
+
+Sent it off, and the server responded with Carlos’s account info, including his API key.
+
+Submitted that API key to complete the lab.
+
+Root Cause
+The server just blindly trusts the "id" parameter from the client and doesn’t verify if you’re allowed to see that user’s data. Since it uses GUIDs, it’s a bit less obvious, but the flaw is the same: no proper access control on user resources.
+
+Fixes and Mitigation
+Don’t trust client-side IDs to control access.
+Make sure the server checks the logged-in user against the requested user ID.
+Enforce strict access control so users can only see their own data unless they have explicit permission.
+Avoid exposing sensitive IDs in URLs or APIs without proper validation.
