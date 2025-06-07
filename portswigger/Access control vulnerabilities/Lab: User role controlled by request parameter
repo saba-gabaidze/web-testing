@@ -1,0 +1,69 @@
+User Role Controlled by Request Parameter
+
+Lab Difficulty: Apprentice
+Vulnerability Type: Insecure Access Control / Role Tampering
+
+Summary
+This lab demonstrates a classic case of insecure access control where a user's administrative privileges are determined solely by a client-side cookie. Since the server blindly trusts the value of the Admin cookie, an attacker can escalate their privileges by modifying it, gaining access to restricted administrative functionality. This vulnerability is commonly found when role-based access control is implemented only on the client side without proper validation on the server.
+
+Objective
+Exploit the insecure role-based access control mechanism by modifying the Admin cookie to true, access the /admin panel, and delete the user carlos.
+
+Technical Walkthrough
+1. Initial Reconnaissance
+Accessed the lab and attempted to visit /admin.
+
+Received an error or redirect, confirming that access is restricted.
+
+2. Authentication as a Regular User
+Navigated to the login page.
+
+Logged in with provided credentials:
+
+Username: wiener
+
+Password: peter
+
+3. Intercept and Analyze the Response
+Enabled Burp Suite Proxy, turned interception on, and enabled response interception.
+
+Submitted the login form and intercepted the response from the server.
+
+Observed that the server sets a cookie:
+
+Set-Cookie: Admin=false
+4. Modify the Admin Cookie
+Before forwarding the intercepted response to the browser, modified the cookie value:
+
+Set-Cookie: Admin=true
+Forwarded the modified response, allowing the browser to store the forged cookie.
+
+5. Access the Admin Panel
+With the modified cookie in place, navigated to /admin.
+
+Successfully accessed the admin interface, confirming that the server relied solely on the cookie to determine access level.
+
+6. Perform the Exploit
+Found a link or endpoint to delete the user:
+
+GET /admin/delete?username=carlos
+Sent the request.
+
+The user carlos was successfully deleted.
+
+Result
+The lab was successfully completed by exploiting the insecure handling of user roles via a client-modifiable cookie. By changing Admin=false to Admin=true, full administrative access was achieved.
+
+Root Cause
+The server relies entirely on a client-supplied cookie (Admin=true/false) to control access to admin functionality. It does not validate user roles on the server side, allowing attackers to manipulate the cookie and escalate privileges.
+
+Mitigation
+To prevent such vulnerabilities:
+
+Never trust client-side input (including cookies) for authorization decisions.
+
+Enforce role-based access control on the server using secure session state or tokens.
+
+Implement proper authentication and authorization checks for every sensitive action.
+
+Use signed cookies or secure session mechanisms that cannot be tampered with by the client.
