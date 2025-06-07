@@ -1,0 +1,56 @@
+User Role Promotion via Referer Header Check
+
+Lab Difficulty: Practitioner
+Vulnerability: Referer-based access control
+
+Summary
+This lab had an interesting (and flawed) approach to access control. Basically, access to admin actions was restricted using the Referer header—yeah, not ideal. So instead of checking user roles server-side, the app assumes you’re allowed to perform admin functions if the request came from the admin panel.
+
+Spoiler: we can fake that.
+
+Our goal was to log in as a normal user and still manage to promote ourselves to admin.
+
+Steps Taken
+First, I logged in using the provided admin creds:
+administrator : admin
+
+Went to the /admin panel, where I saw an option to promote users. I clicked to promote carlos, intercepted the request in Burp, and this came through:
+
+GET /admin-roles?username=carlos&action=upgrade HTTP/1.1
+Host: <lab-id>.web-security-academy.net
+Referer: https://<lab-id>.web-security-academy.net/admin
+Cookie: session=admin-session-token
+Cool. So promoting users is just a GET request, and it relies on the Referer header saying it came from /admin. That’s the key.
+
+I sent this request to Repeater to keep it ready.
+
+Then, opened a new incognito window and logged in with the normal user account:
+wiener : peter
+
+Tried going to /admin-roles?username=wiener&action=upgrade directly—didn’t work. Got blocked. No referer header, and the user didn’t have the right privileges. Makes sense (kind of).
+
+Went back to Burp Repeater, where I still had the original promotion request. I swapped out the session cookie to use wiener’s session instead of the admin one. Also changed the username in the URL to my own (wiener) so I’d be promoting myself.
+
+Made sure the Referer header still pointed to /admin:
+
+GET /admin-roles?username=wiener&action=upgrade HTTP/1.1
+Host: <lab-id>.web-security-academy.net
+Referer: https://<lab-id>.web-security-academy.net/admin
+Cookie: session=wiener-session-token
+Hit send... and it worked.
+
+No error. Promotion successful.
+
+Went to /admin as wiener, and boom—I had access. Lab solved.
+
+Root Cause
+The app was using the Referer header to decide if a user could perform admin actions. That’s a weak control, because headers like that can easily be spoofed or replayed. There was no real role validation happening on the backend—just a trust that “if you came from /admin, you must be allowed.”
+
+Fixes and Mitigation
+Never use headers like Referer for access control decisions. They're client-controlled and unreliable.
+
+All permissions should be validated server-side based on the logged-in user’s role.
+
+Implement proper role-based access control (RBAC) that actually checks what the user is allowed to do.
+
+Sensitive actions (like role upgrades) should be POST requests with CSRF protection and strict authentication checks.
