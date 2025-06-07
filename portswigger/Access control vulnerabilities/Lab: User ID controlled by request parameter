@@ -1,0 +1,63 @@
+Title: Horizontal Privilege Escalation via User ID Parameter Manipulation
+Lab Difficulty: Apprentice
+Vulnerability Type: Insecure Direct Object Reference (IDOR) / Horizontal Privilege Escalation
+
+Summary
+This lab demonstrates a horizontal privilege escalation vulnerability caused by insecure direct object references (IDOR). Specifically, the user account page is accessed via a request containing an id parameter that directly reflects the username. The server fails to enforce proper access control checks, allowing an authenticated user to manipulate the id parameter and access other users’ data.
+
+Objective
+Exploit the IDOR vulnerability to retrieve the API key of another user, carlos, and submit it to solve the lab.
+
+Technical Walkthrough
+1. Login and Analyze the Account Page
+Logged in using the provided credentials:
+
+Username: wiener
+Password: peter
+Navigated to the /my-account or equivalent user account page.
+
+Observed the HTTP request contained a query parameter:
+
+GET /my-account?id=wiener HTTP/1.1
+Host: <target>
+Cookie: session=<valid_session_token>
+
+2. Identify the Vulnerability
+Noted that the id parameter directly referenced the username.
+
+Hypothesized that this parameter is used to retrieve user-specific data without authorization checks.
+
+3. Exploit the IDOR
+Sent the request to Burp Repeater.
+
+Modified the id parameter from wiener to carlos:
+
+GET /my-account?id=carlos HTTP/1.1
+Host: <target>
+Cookie: session=<valid_session_token>
+Sent the modified request.
+
+4. Extract Sensitive Information
+The server responded with account details for carlos, including the following:
+
+Your API Key is: 5e1fd674cd3b4d4f88e3a5f08d073de7
+Submitted the API key to complete the lab.
+
+Result
+The lab was successfully solved by exploiting an IDOR vulnerability to access another user's data (carlos) and retrieve his API key.
+
+Root Cause
+The server did not validate that the authenticated user was authorized to access the account associated with the id parameter.
+
+This allowed an attacker to modify the parameter and access another user's account page.
+
+Mitigation
+To prevent this type of vulnerability:
+
+Enforce authorization checks on the server side to ensure users can only access their own data.
+
+Avoid using user-controllable identifiers (like usernames) in query parameters for sensitive endpoints.
+
+Use indirect references (such as internal IDs not guessable or visible to users) when necessary.
+
+Implement a robust access control model that ties session identity strictly to resource access.
