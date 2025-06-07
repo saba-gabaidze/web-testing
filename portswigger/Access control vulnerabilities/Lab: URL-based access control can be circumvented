@@ -1,0 +1,39 @@
+URL-based access control can be circumvented – Admin Panel Access via X-Original-URL Header
+
+Lab Difficulty: Practitioner
+Vulnerability: Bypassing front-end access control using HTTP headers
+
+Summary
+This lab was all about sneaking past access controls using a trick involving the X-Original-URL header. Basically, even though the front-end blocks direct access to /admin, the back-end still trusts headers that tell it where to go. That disconnect between layers? That’s the gap we can exploit.
+
+Steps Taken
+Started by visiting /admin directly. As expected, access was denied. The response was super plain—just a “Not allowed” kind of message. Nothing fancy, which usually means a front-end system is doing the blocking.
+
+Sent the same request to Burp Repeater to mess around with it a bit. Changed the path in the request line to just / and added this header:
+
+X-Original-URL: /invalid
+The response? A “not found” page. That’s already a clue. If the server just treated the header like a random string, it would’ve ignored it. But here, it actually processed the path from the header. Interesting.
+
+So, went ahead and changed the value to:
+
+
+X-Original-URL: /admin
+admin panel loaded. No auth, no redirect, just straight in.
+
+From there, I needed to delete the user carlos. The delete function was likely at /admin/delete?username=carlos, so I added the real query string like this:
+
+GET /?username=carlos
+X-Original-URL: /admin/delete
+Sent that off—and it worked. Carlos gone. Lab solved.
+
+Root Cause
+The back-end server was set up to trust the X-Original-URL header, which can be dangerous if your front-end access controls can be bypassed. Even though the front-end blocked direct requests to /admin, the back-end happily accepted a fake path via header injection.
+
+Fixes and Mitigation
+Never trust user-controlled headers like X-Original-URL, X-Rewrite-URL, or similar unless you're 100% sure it's safe.
+
+Block these headers at the front-end or proxy layer if you don’t explicitly need them.
+
+Apply access control checks in the back-end, not just at the front-end or reverse proxy.
+
+Always assume headers can be manipulated unless you control every point they touch.
