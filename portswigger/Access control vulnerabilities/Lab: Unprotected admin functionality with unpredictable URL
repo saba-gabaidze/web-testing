@@ -1,1 +1,65 @@
+Unprotected Admin Functionality with Unpredictable URL
+
+Lab Difficulty: Apprentice
+Vulnerability Type: Unprotected Admin Panel / Security through Obscurity / Access Control
+
+Summary
+This lab demonstrates a common security misconfiguration where an admin panel is protected only by obscurity—hidden behind an unpredictable URL—but lacks proper authentication or authorization controls. The admin panel URL is not linked openly in the UI but can be discovered through client-side JavaScript code embedded in the homepage. Once accessed, the admin panel allows administrative actions, such as deleting users, without additional security checks.
+
+Objective
+Discover the hidden admin panel URL disclosed in the application’s JavaScript source, access the admin panel, and delete the user carlos to complete the lab.
+
+Technical Walkthrough
+Analyze the Homepage Source Code
+
+Open the lab homepage in a browser or intercept the HTTP response using Burp Suite.
+
+Inspect the page source or use browser developer tools (e.g., Chrome DevTools → Elements tab) to examine the embedded JavaScript.
+
+Locate the Admin Panel URL
+
+Within the JavaScript, find a snippet similar to:
+
+var isAdmin = false;
+if (isAdmin) {
+   var topLinksTag = document.getElementsByClassName("top-links")[0];
+   var adminPanelTag = document.createElement('a');
+   adminPanelTag.setAttribute('href', '/admin-6sxk5s');
+   adminPanelTag.innerText = 'Admin panel';
+   topLinksTag.append(adminPanelTag);
+   var pTag = document.createElement('p');
+   pTag.innerText = '|';
+   topLinksTag.appendChild(pTag);
+}
+Even though isAdmin is false, the JavaScript reveals the hidden URL for the admin panel: /admin-6sxk5s.
+
+Access the Admin Panel
+
+Manually navigate to https://<lab-domain>/admin-6sxk5s in the browser.
+
+Notice that the panel loads without any authentication or authorization checks.
+
+Delete User 'carlos'
+
+Use the admin interface to find and delete the user carlos.
+
+This action completes the lab successfully.
+
+Root Cause
+The application relies solely on security through obscurity by hiding the admin panel behind a “secret” URL, without enforcing proper access controls or authentication. This allows any user who discovers the URL—by inspecting client-side JavaScript or guessing—to gain full administrative privileges.
+
+Mitigation
+To prevent this vulnerability:
+
+Implement Proper Authentication and Authorization:
+Protect sensitive administrative endpoints behind strong authentication mechanisms (e.g., login, session management) and role-based access control.
+
+Avoid Security Through Obscurity:
+Never rely on hidden URLs or unpredictable endpoints as a security measure alone.
+
+Hide Sensitive URLs from Client-side Code:
+Avoid exposing sensitive endpoints in client-side JavaScript or HTML where users can easily find them.
+
+Enforce Server-side Access Controls:
+Validate all requests to sensitive endpoints on the server to ensure only authorized users can access them.
 
