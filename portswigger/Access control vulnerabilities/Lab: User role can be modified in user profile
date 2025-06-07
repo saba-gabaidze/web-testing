@@ -1,0 +1,51 @@
+User Role Can Be Modified in Profile Settings – Privilege Escalation via IDOR
+
+Lab Difficulty: Apprentice
+Vulnerability: Insecure Direct Object Reference (IDOR) / Privilege Escalation
+
+Summary
+
+This lab demonstrates a classic privilege escalation flaw. Basically, the user role is controlled on the client side (bad idea), and the server doesn’t validate it properly. So by editing a request sent when updating the profile, it's possible to bump your own role from a normal user to an admin. Once that's done, you get access to the /admin panel and can delete users—like carlos.
+
+Steps Taken
+
+Logged into the application using the credentials provided:
+wiener : peter
+
+After logging in, I headed over to the account or profile page—just poking around to see what could be edited.
+
+I tried updating the email address to something random. Intercepted the request using Burp Suite, and this is what came through:
+
+
+{
+  "email": "someemail@protonmail.com"
+}
+Nothing weird at first glance—but the server’s response included a roleid, which was set to 0. Interesting.
+
+Sent the intercepted request to Burp Repeater and added roleid: 2 manually:
+
+{
+  "email": "someemail@protonmail.com",
+  "roleid": 2
+}
+Hit send, and the server replied with updated data—including roleid: 2. No errors, no 403, nothing. That was the first real sign that role validation wasn’t happening properly.
+
+I tried going to /admin next, and it worked. No redirect. Admin panel loaded fine. So the role change definitely stuck.
+
+Inside the admin panel, I found an option to delete users. The user carlos was listed, so I clicked (or in my case, used this endpoint):
+
+
+GET /admin/delete?username=carlos
+Success. User gone. Lab complete.
+
+Root Cause
+
+The application blindly trusted the data sent by the client—including the user role. That’s a serious flaw. Anyone who knows how to intercept and modify traffic can basically give themselves admin privileges.
+
+Fixes and Mitigation
+
+Never rely on client-side data to determine permissions.
+Server should ignore any attempt to set roleid from the client.
+Always validate role changes (or any sensitive field) server-side.
+RBAC (Role-Based Access Control) should be enforced strictly at the backend.
+Ideally, the server should only respond with the role, never allow it to be set via user inputs.
