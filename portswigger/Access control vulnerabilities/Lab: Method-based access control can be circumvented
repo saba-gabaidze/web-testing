@@ -1,0 +1,54 @@
+Method-based Access Control Circumvention – Admin Privilege Escalation via HTTP Verb Tampering
+
+Lab Difficulty: Practitioner
+Vulnerability: Method-based Access Control / Privilege Escalation
+
+Summary
+This lab’s access control logic partially relies on the HTTP method used—basically, it assumes that if a request is made with a certain method (like POST), it must be trusted. That’s not great. The idea is to promote a user to admin using a non-admin account by bypassing this method-based check.
+
+The trick? Change the request method from POST to GET and mess around with the parameters a bit. The server ends up letting us do something we shouldn’t be allowed to do.
+
+Steps Taken
+Logged in with the given admin credentials first (administrator : admin), just to poke around and see what the admin panel looks like.
+
+Headed to /admin, found a list of users, and clicked to promote carlos. Intercepted that request in Burp and sent it to Repeater.
+
+Here’s what that looked like:
+
+
+POST /admin-roles?username=carlos&action=promote
+Kept that request on standby.
+
+Now opened a private window, logged in as wiener : peter (the regular user), and grabbed that user’s session cookie. Replaced the admin session cookie in Burp Repeater with wiener’s.
+
+Tried sending the same exact request again (POST /admin-roles...), but this time with the non-admin cookie.
+
+Response:
+HTTP/1.1 401 Unauthorized
+So, access control is doing something. But then it got interesting.
+
+Tried changing the method from POST to POSTX (just to see what happens), and the response changed to something like “missing parameter”. Weird—but promising. It means the backend might be looking at the method name directly.
+
+Then did the real move: right-clicked the request in Burp and chose "Change request method" → converted it to GET.
+
+Changed the username parameter to my own username (wiener), like this:
+
+
+GET /admin-roles?username=wiener&action=promote
+Sent it.
+
+No error. Response said promotion successful.
+
+Went back to /admin panel and—it loaded. No restrictions. I had admin rights now.
+
+Root Cause
+The backend logic tied access control checks to the HTTP method—assuming only POST requests are dangerous. That’s flawed because method names can be manipulated, and GET requests can still trigger actions if the backend isn't validating roles properly.
+
+Fixes and Mitigation
+Don’t rely on the HTTP method to gate access to sensitive actions.
+
+Always perform proper authentication and authorization on the backend, regardless of the method.
+
+Server should enforce strict role checks for any privileged operation, regardless of how the request comes in.
+
+Sensitive actions like promoting users should require explicit permission checks—not just a specific HTTP verb.
