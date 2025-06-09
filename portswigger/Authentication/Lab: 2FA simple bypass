@@ -1,0 +1,42 @@
+2FA Simple Bypass – Accessing Account Without Verification Code
+
+Lab Difficulty: Apprentice
+Vulnerability: Broken Authentication / 2FA Bypass
+
+Summary
+This lab had two-factor authentication (2FA) enabled, but the implementation was flawed. After logging in with valid credentials, the app asked for a verification code — sounds secure, right? But turns out, you could just skip the 2FA step by manually going to a protected page. No code needed.
+
+Steps Taken
+Logged in as usual using the provided user:
+wiener : peter
+
+After entering the correct password, it asked me for a 2FA code. Fine. Clicked the "Email client" button and checked my inbox — got the code instantly.
+
+Before doing anything else, I headed to /my-account to see what the authenticated area looked like. Just poking around.
+
+Cool. Now I logged out.
+
+Next, I tried logging in with the victim’s credentials:
+carlos : montoya
+
+Same thing — password accepted, but then it stopped and asked for a 2FA code. Of course, I didn’t have access to Carlos’s email, so no way to get the actual code.
+
+Instead of giving up or guessing the code, I just changed the URL manually to /my-account.
+
+And… it worked.
+
+No code entered. No verification. Just straight into Carlos’s account page. Lab solved.
+
+Root Cause
+The application enforced 2FA on the login flow, but not on the backend. Basically, once you’re past the password check, it sets some kind of session — and the 2FA gate is only protecting the user interface, not the actual resources.
+
+So if you skip the front door and just go around to the side, you’re in. Classic case of access control being handled on the client side (bad idea).
+
+Fixes and Mitigation
+2FA should be validated server-side before granting access to any authenticated endpoints.
+
+Protected resources like /my-account should check whether the user fully passed the 2FA step.
+
+Don’t rely on just frontend flow control — always enforce it at the backend.
+
+Ideally, the server should flag the session as "2FA incomplete" until it’s fully verified, and reject any access until that’s cleared.
