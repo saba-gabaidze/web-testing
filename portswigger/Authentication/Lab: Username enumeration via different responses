@@ -1,0 +1,55 @@
+Username Enumeration via Different Responses
+
+Lab Difficulty: Apprentice
+Vulnerability: Username Enumeration + Brute-force
+
+Summary
+This lab’s login page gives away way too much info when you mess with it. Basically, it tells you when a username is wrong and when a password is wrong—huge mistake. That opens the door for easy username enumeration, followed by a classic brute-force to find the password. Once you get valid creds, it’s just a matter of logging in and hitting the user account page.
+
+Steps Taken
+Started off by opening the lab with Burp running and went straight to the login page.
+
+Entered a random username and password just to see what the response looks like. Something like:
+
+username=notarealuser&password=wrongpass
+Intercepted that POST request in Burp and sent it over to Intruder. Burp automatically highlighted the username field with § symbols, so I left that as-is and kept the password field static for now.
+
+Used the provided candidate usernames list and pasted it into the Payloads tab under Simple list.
+
+Started the attack.
+
+Once it finished, sorted the results by Length. Most responses were pretty short, but one of them stood out—slightly longer. That one said “Incorrect password” instead of “Invalid username.” Jackpot.
+
+The valid username was carlos.
+
+Next, I cleared the Intruder positions, locked in the username as carlos, and added payload markers around the password like this:
+
+
+username=carlos&password=§password§
+Switched out the wordlist with the candidate passwords list and kicked off another attack.
+
+This time, I sorted the results by Status and looked for something different. Most came back with 200 (failed login), but one came back with 302—redirection. That usually means success.
+
+Got the matching password from the payload column, which turned out to be montoya.
+
+Logged in with:
+
+Username: carlos  
+Password: montoya
+Landed on the account page—lab solved.
+
+Root Cause
+The login response messages were inconsistent. Telling the user whether the username or password is wrong might feel helpful, but it actually leaks info. That small difference in wording (or even content length) makes it easy to find valid usernames.
+
+Once you have a valid username, it’s just brute-force from there.
+
+Fixes and Mitigation
+Make error messages the same no matter what failed: generic like “Invalid credentials.”
+
+Limit failed login attempts per user or IP.
+
+Add logging and alerts for brute-force patterns.
+
+Use CAPTCHA or account lockout after multiple failed attempts.
+
+Monitor for enumeration attacks in authentication logs.
