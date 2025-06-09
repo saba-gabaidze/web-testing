@@ -6,8 +6,6 @@ Vulnerability: Referer-based access control
 Summary
 This lab had an interesting (and flawed) approach to access control. Basically, access to admin actions was restricted using the Referer header—yeah, not ideal. So instead of checking user roles server-side, the app assumes you’re allowed to perform admin functions if the request came from the admin panel.
 
-Spoiler: we can fake that.
-
 Our goal was to log in as a normal user and still manage to promote ourselves to admin.
 
 Steps Taken
