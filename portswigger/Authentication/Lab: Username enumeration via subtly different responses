@@ -1,0 +1,53 @@
+Username Enumeration via Subtly Different Responses
+
+Lab Difficulty: Practitioner
+Vulnerability: Username Enumeration / Brute-Force
+
+Summary
+This lab is about spotting the smallest difference in login error messages to figure out valid usernames. The password brute-force part is basic, but the real trick is catching that one tiny inconsistency that gives away which username actually exists. Classic enumeration, just super subtle.
+
+Steps Taken
+First thing—fired up Burp and logged a basic login attempt using an obviously wrong combo. Something like:
+
+
+username=notrealuser&password=badpassword
+Captured the request and sent it to Burp Intruder. The goal here was to test all usernames from the wordlist, so I highlighted the username parameter and set that as the payload position.
+
+On the Payloads tab, I loaded up the list of candidate usernames provided by the lab.
+
+Now, here’s the key part—went to the Grep - Extract tab under Settings. Clicked Add, then scrolled through the response and highlighted the Invalid username or password. message. That created a new column in the results so I could easily compare response messages side-by-side.
+
+Started the attack.
+
+Once the requests finished, I sorted the responses by the extracted message column. Most of them said:
+
+
+Invalid username or password.
+But one of them had a tiny difference—same message but with a trailing space instead of a period. Like:
+
+
+Invalid username or password 
+Super subtle, but that’s our winner. That’s the valid username.
+
+Next step: brute-force the password. I took that valid username, changed the Intruder payload position to the password parameter instead, and used the password wordlist.
+
+Something like:
+
+
+username=valid-user-here&password=§password-payload§
+Kicked off the attack, and this time watched the status codes. Most came back with 200, but one stood out with a 302 redirect. That’s a sign of successful login.
+
+Took that username and password, logged in through the UI, and boom—account page loaded. Lab solved.
+
+Root Cause
+The app tries to hide whether a username exists by using the same error message—but messes it up slightly. A space instead of a period gave it away. That’s enough for attackers to single out valid usernames, which then opens the door for brute-forcing passwords.
+
+Fixes and Mitigation
+Always make sure error messages are identical—character-for-character—regardless of what part of the login failed.
+
+Don’t give clues in status codes or message formatting.
+
+Add rate limiting or account lockouts to slow brute-force attempts.
+
+Consider using generic messages like Invalid credentials without pointing to whether it was the username or password that failed.
+
