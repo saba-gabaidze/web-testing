@@ -1,0 +1,44 @@
+Lab: Broken brute-force protection, IP block
+
+Difficulty: Practitioner
+Vulnerability: Logic flaw in brute-force protection / Authentication bypass
+
+Summary
+This lab is all about a sneaky logic flaw in the brute-force protection. The system blocks your IP after 3 failed login attempts, which seems solid at first. But the catch is, you can reset the failed login counter by logging into your own account before hitting that limit. Using this, you can keep trying passwords for the victim’s account without getting locked out. The goal: brute-force carlos’s password, log in, and get to his account page.
+
+Steps Taken
+Started off by checking out the login page with Burp Suite running. Tried a few wrong passwords in a row, and sure enough—after 3 tries, my IP got temporarily blocked. Cool, but not unbreakable.
+
+Noticed something interesting: if I logged in with my own creds before hitting the 3-fail limit, the block counter reset. That basically means the brute-force protection is relying on a logic flaw—resetting the block counter on a successful login from the same IP.
+
+So here’s what I did next:
+
+Sent an invalid username and password combo to Burp Intruder targeting the /login endpoint.
+
+Set up a pitchfork attack with payload positions on both username and password fields.
+
+To keep things orderly, I opened the Resource pool and limited the max concurrent requests to 1, so Burp would send each login attempt one by one.
+
+For usernames, created a payload list that alternates between my username (wiener) and carlos, making sure my username comes first, then carlos repeated about 100 times.
+
+For passwords, I made sure to add my own password first to match my username, followed by a list of candidate passwords for carlos.
+
+Launched the attack.
+
+After the attack ran, I filtered out all responses with a 200 status code (successful logins) to narrow down the interesting results. Sorted by username and found just one 302 response for carlos—meaning a successful login redirect.
+
+Checked the Payload 2 column for that request and noted the password that worked.
+
+Logged into carlos’s account using the discovered password, accessed his account page, and that was it—lab solved.
+
+Root Cause
+The brute-force protection was flawed because it resets the failed login counter on a successful login from the same IP. So by alternating between your own correct login and attempts on the victim’s account, you can bypass the IP block and brute-force the victim’s password.
+
+Fixes and Mitigation
+Don’t reset brute-force counters based on unrelated successful logins.
+
+Consider tracking failed login attempts per username independently of IP, or use a combination of IP + username for rate limiting.
+
+Implement exponential backoff or CAPTCHA challenges after multiple failed attempts.
+
+Monitor for suspicious login patterns that alternate usernames rapidly.
