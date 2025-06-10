@@ -1,0 +1,74 @@
+Username Enumeration via Response Timing – Lab Writeup
+
+Lab Difficulty: Practitioner
+Vulnerability: Timing-based Username Enumeration + Brute-force
+
+Summary
+This lab’s a nice little combo of username enumeration using response time and then classic brute-force. The idea is: when you try logging in with a valid username, the app behaves slightly differently than with an invalid one—specifically, it takes longer to respond. That’s our in. Once we find the valid username, we brute-force the password, log in, and hit the account page to finish the lab.
+
+Steps Taken
+Logged in as usual with the provided creds:
+wiener : peter
+
+Intercepted the login request in Burp and sent it to Repeater. The request looked like this:
+
+
+POST /login HTTP/1.1
+Host: <lab-id>.web-security-academy.net
+
+
+username=whatever&password=wrongpassword
+Tried random usernames and passwords, just to get a feel. Got the usual login failed message. But here’s the thing: after a few tries, the app blocked me. So there’s some IP-based brute-force protection going on.
+
+Quick fix: I added the X-Forwarded-For header to spoof my IP. Something like:
+
+X-Forwarded-For: 1.1.1.1
+Then I rotated the IP in each request to keep the server happy. Now back to business.
+
+Next, I started messing around with different usernames and long passwords. I noticed something subtle but important:
+
+Invalid usernames? Responses were quick.
+
+Valid username (like wiener)? Response time was noticeably slower, especially if I used a longer password.
+
+That was the clue—response time reveals whether a username exists.
+
+So I sent the login request to Burp Intruder and set it up like this:
+
+Attack type: Pitchfork
+
+Position 1: X-Forwarded-For (used a list of fake IPs like 1 to 100)
+
+Position 2: username (used the candidate usernames)
+
+Password field: just put a really long string (100 chars) to amplify the timing gap
+
+Launched the attack. Once it finished, I enabled the columns “Response received” and “Response completed” to check timing.
+
+Sure enough, one username had significantly longer response times compared to the others. Tried it a few more times to be sure—same result. That’s our valid username.
+
+Next phase: brute-force the password.
+
+I set up a new Intruder attack, again using Pitchfork:
+
+Position 1: X-Forwarded-For (spoofed IPs again)
+
+Position 2: password (used the provided password list)
+
+Hardcoded the valid username we just found in the request
+
+Ran the attack, and eventually found a response with status 302—meaning login success.
+
+Took that username + password and logged in manually. Went to the account page. Boom. Lab solved.
+
+Root Cause
+The app leaks information about usernames based on how long it takes to respond. That’s a classic side-channel vulnerability. On top of that, it relies on IP-based brute-force protection—but lets you spoof IPs via X-Forwarded-For, which makes that protection pointless.
+
+Fixes and Mitigation
+Never reveal user validity via response timing—make responses uniform regardless of username/password combo.
+
+Implement proper rate-limiting tied to accounts, not just IP addresses.
+
+Treat headers like X-Forwarded-For carefully—don’t trust them unless validated by a trusted proxy.
+
+Use CAPTCHA, lockouts, or MFA to slow down brute-force attempts.
