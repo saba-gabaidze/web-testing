@@ -1,0 +1,70 @@
+Username Enumeration via Account Lock
+
+Lab Difficulty: Practitioner
+Vulnerability: Username Enumeration + Account Lock Logic Flaw
+
+Summary
+This lab plays with a common defense gone wrong—account locking after a few failed attempts. Good idea in theory, but there’s a flaw: the error messages change based on whether the username exists or not. That’s all we need to break it. Once we find a valid username, we brute-force the password and get in.
+
+Steps Taken
+Started by launching Burp and heading to the login page. Nothing fancy here—just the usual username and password fields.
+
+Submitted some totally fake creds:
+
+Username: notarealuser
+Password: anything
+Captured that POST /login request in Burp and sent it over to Intruder.
+
+Switched the attack type to Cluster Bomb since we’re trying to test a bunch of usernames with repeated attempts. Marked the username field as the first payload position, and added an extra empty payload spot at the end so each username would get hit 5 times.
+
+Example:
+
+username=§invaliduser§&password=whatever§§
+In Payloads:
+
+First position: candidate usernames
+
+Second position: Null payloads (5 of them, just to repeat attempts)
+
+Ran the attack and watched the length of responses. One username stood out—its responses were longer than the others. Looked closer, and boom: the message was different.
+
+You have made too many incorrect login attempts.
+That told me the username was real, and the system had just locked the account temporarily.
+
+Saved that valid username.
+
+Next step: brute-force the password.
+
+Set up a new Intruder attack, this time using Sniper. Used the known username in the request and placed the payload marker on the password field.
+
+Loaded up the candidate password list and added a grep extract rule to pull the error messages from the response.
+
+Ran the attack.
+
+Most responses had the usual incorrect password message. But then one stood out—no error message at all. That was likely the correct password.
+
+Waited a bit to let the account unlock (it only locks for a short time), then logged in with:
+
+That valid username
+
+That one password with no error message
+
+Got in. Visited the user’s account page. Lab solved.
+
+Root Cause
+The app gave away too much info through error messages. Specifically:
+
+Invalid usernames gave generic “Invalid username or password” errors.
+
+Valid usernames, after several failed attempts, triggered lockout messages like “Too many failed attempts.”
+
+That’s enough to tell us which usernames exist—classic username enumeration.
+
+Fixes and Mitigation
+Show the exact same error message for all login failures, no matter what part is wrong.
+
+Avoid exposing account lock status in responses. Keep it silent.
+
+Implement rate limiting and monitoring, not just lockouts.
+
+Use CAPTCHA or 2FA to slow down brute-force attempts without revealing account info.
