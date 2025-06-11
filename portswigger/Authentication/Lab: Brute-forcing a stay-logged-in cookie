@@ -1,0 +1,62 @@
+Brute-forcing a stay-logged-in cookie – Account Takeover via Weak Cookie Scheme
+
+Lab Difficulty: Practitioner
+Vulnerability: Weak Authentication / Predictable Cookie
+
+Summary
+This lab shows how a weak “stay logged in” cookie can lead to account takeover. Basically, the app stores a persistent login cookie that’s just a Base64 string made of the username and an MD5 hash of the password. That’s... not great. Once you know the structure, it’s just a matter of brute-forcing the right password for another user—in this case, carlos.
+
+Steps Taken
+Logged into the site with the provided credentials:
+wiener : peter
+Checked the “Stay logged in” box before logging in.
+
+After logging in, I opened Burp and looked at the stay-logged-in cookie. It looked like this:
+
+d2llbmVyOjUxZGMzMGRkYzQ3M2Q0M2E2MDExZTllYmJhNmNhNzcw
+Decoded it (Base64), and it gave me:
+
+wiener:51dc30ddc473d43a6011e9ebba6ca770
+That second part looked suspiciously like an MD5 hash. So I hashed the password peter with MD5 and yep—match. The cookie is just:
+
+
+base64(username + ':' + md5(password))
+Cool. That means if we can guess carlos’s password, we can build his cookie.
+
+Logged out of my account and went back to the last request I made to /my-account?id=wiener. Sent it to Intruder, targeting the stay-logged-in cookie for brute-forcing.
+
+In Burp Intruder, I set up a single payload (my own password at first) and added a few payload processing rules:
+
+Hash it with MD5
+
+Add prefix: wiener:
+
+Base64 encode the whole thing
+
+Ran it just to test the setup, and the response loaded my account just fine. Confirmed it was working by checking that the response contained the string Update email.
+
+Now switched things up:
+
+Replaced the payload list with the list of candidate passwords (the ones provided by the lab)
+
+Changed the prefix to carlos:
+
+Changed the URL param from ?id=wiener to ?id=carlos
+
+Ran the attack again. Out of all the requests, only one had the string Update email in the response.
+
+That was it. The payload that worked gave me access to Carlos’s account. Lab solved.
+
+Root Cause
+The app uses a weak cookie-based authentication scheme. It stores a Base64-encoded string of the username and an MD5 hash of the password. There’s no proper authentication server-side—if you guess the right hash combo, you’re in.
+
+Fixes and Mitigation
+Never store sensitive authentication logic like this in cookies.
+
+Avoid using MD5—it's fast and easy to brute-force.
+
+Use proper session tokens for persistent login, generated securely on the server.
+
+Validate the user and password server-side—don’t trust values just because they came from a cookie.
+
+Consider using something like JWT with proper signature verification if needed.
