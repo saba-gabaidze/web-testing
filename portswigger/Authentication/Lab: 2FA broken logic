@@ -1,0 +1,43 @@
+User Role Can Be Modified in Profile Settings – 2FA Broken Logic
+
+Lab Difficulty: Practitioner
+Vulnerability: Broken 2FA Logic / Access Control Flaw
+
+Summary
+This lab has a pretty common 2FA logic flaw. The app lets users verify 2FA using just a username in the request—no proper session validation tying the code to the original login. So, with some tweaking, we can trick it into verifying Carlos’s 2FA code and access his account.
+
+Steps Taken
+Logged in with the provided creds:
+wiener : peter
+
+After logging in, the app prompted for a 2FA code. I intercepted the POST /login2 request in Burp Suite and noticed it had this structure:
+
+
+POST /login2
+verify=wiener
+mfa-code=123456
+Nothing too strange... but the verify parameter stood out. It’s literally telling the server which user is being verified. Hmm.
+
+I tried changing verify=wiener to verify=carlos and sent a GET /login2 request through Burp Repeater. That seemed to trigger the app to generate a new 2FA code for Carlos—so now we just needed to brute-force it.
+
+I logged out and went back to the login page. Entered my creds again (wiener : peter), and on the 2FA prompt, I submitted a wrong code on purpose—just to get a fresh POST /login2 request.
+
+Intercepted that request, sent it to Burp Intruder.
+
+Set verify=carlos and marked the mfa-code field as the payload position.
+
+Then I launched a simple brute-force attack with 0000–9999. It didn’t take long—once I hit the correct code, the response was a 302 redirect.
+
+Loaded that in the browser, hit "My account", and boom—I was inside Carlos’s account. Lab complete.
+
+Root Cause
+The app doesn’t tie the 2FA code to the actual session or login attempt. It just accepts any username in the verify parameter and checks if the code is valid for that user. That means we can generate a code for someone else and brute-force it without ever logging in as them.
+
+Fixes and Mitigation
+2FA should be tied to the user’s authenticated session—not something you can swap in a request.
+
+The server should never let the client specify which user is being verified.
+
+MFA codes should expire quickly and be rate-limited to prevent brute-force attempts.
+
+All login flows should verify user identity end-to-end before allowing access.
