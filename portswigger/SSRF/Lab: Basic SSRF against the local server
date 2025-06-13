@@ -1,0 +1,55 @@
+Basic SSRF Against the Local Server
+Lab Difficulty: Apprentice
+Vulnerability: SSRF (Server-Side Request Forgery)
+
+Summary
+This lab teaches a classic Server-Side Request Forgery (SSRF) vulnerability. There’s a stock check feature that makes a request to a back-end service using a user-supplied URL. The trick is to exploit this behavior to make the server send a request to its internal admin panel at http://localhost/admin and delete the user carlos.
+
+Steps Taken
+1. Identified the vulnerable feature
+Clicked around and found the stock check functionality. It allowed sending a POST request to /product/stock with a parameter like:
+
+
+stockApi=http://stock.weliketoshop.net/product/stock/check?productId=1
+This URL is sent by the server to fetch data — perfect SSRF candidate.
+
+2. Confirmed it was vulnerable
+Sent the request in Burp Repeater and replaced the domain with http://localhost/. Got a different response — that was a good sign that the server actually made the request.
+
+3. Discovered the admin panel
+Tried requesting:
+
+stockApi=http://localhost/admin
+The response came back with an HTML page containing an "Admin interface" and a "Delete" button for carlos. Bingo — now we just needed to trigger that delete action.
+
+4. Triggered the delete request
+Inspected the admin page HTML and found a link or form like:
+
+
+http://localhost/admin/delete?username=carlos
+Modified the original stock check POST request:
+
+POST /product/stock HTTP/1.1
+Host: YOUR-LAB-ID.web-security-academy.net
+...
+
+stockApi=http://localhost/admin/delete?username=carlos
+Sent the request. Got a simple success response — no error.
+
+5. Verified solution
+Refreshed the lab and got the “Congratulations, you solved the lab” message. That confirmed the SSRF worked and carlos was deleted.
+
+Root Cause
+The server trusted the user-supplied stockApi URL without validation. Since the SSRF request was processed server-side, it could access internal resources like localhost, which are usually inaccessible from the outside. The application didn’t restrict the URL scheme, domain, or path — making it wide open to SSRF.
+
+Fixes and Mitigation
+Whitelist outbound domains — only allow requests to trusted, specific domains (like stock.weliketoshop.net).
+
+Block localhost/internal IP ranges in outbound requests.
+
+Disallow URL redirections — attackers may use them to bounce requests to internal services.
+
+Avoid taking full URLs from user input — use ID-based systems instead.
+
+Monitor unusual internal traffic patterns, especially HTTP requests to 127.0.0.1 or localhost.
+
