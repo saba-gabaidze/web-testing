@@ -1,0 +1,63 @@
+2FA Bypass via Brute-Force Attack
+
+Lab Difficulty: Expert
+Vulnerability: 2FA / Brute-Force Attack
+
+Summary
+This lab has two-factor authentication (2FA), but it turns out the implementation can be brute-forced. We already know Carlos’s username and password, but we don’t have his 4-digit 2FA code. The trick here is using Burp’s Intruder with a session-handling macro that keeps us logged in after failed attempts — otherwise we’d get kicked out after two wrong codes. Once you get the right code, you’re in.
+
+Steps Taken
+Started off by logging in as carlos:montoya. After entering those, I was taken to a page asking for a 4-digit 2FA code. Just a basic form with a mfa-code field.
+
+Tried entering a wrong code a few times manually. After two bad attempts, the app logged me out completely. Annoying, but makes sense. That’s the security measure we’re going to bypass.
+
+Here’s the approach:
+Opened Burp > Settings > Sessions and created a new Session Handling Rule.
+
+In the Scope tab, set it to include all URLs.
+
+In Rule Actions, added a macro.
+
+For the macro, selected these 3 requests:
+
+GET /login
+
+POST /login
+
+GET /login2
+
+Clicked through the Macro Editor and tested it. If the final response still showed the 2FA form, I knew the macro was working — basically re-logging in automatically before each brute-force attempt.
+
+Next, sent the POST /login2 request (where the 2FA code gets submitted) to Burp Intruder.
+
+In Intruder:
+
+Added a payload position to the mfa-code parameter.
+
+Payload type: Numbers
+
+Range: 0000 to 9999
+
+Min/Max digits: 4
+
+Step: 1
+
+Set up a resource pool to limit it to 1 concurrent request. Important, or you’ll run into sync issues.
+
+Started the attack. After a while, one of the requests came back with a 302 — nice. That’s our valid code.
+
+Right-clicked the request → Show response in browser → Opened the URL. Clicked My account, and boom — lab solved.
+
+Root Cause
+The server didn’t have any real protection against brute-forcing the 2FA code beyond logging the user out after two failed attempts. But since we could automate a login using a macro before each try, that lockout became useless. There was also no rate limiting or account lockout per IP — nothing stopping us from cycling through every code.
+
+Fixes and Mitigation
+Add rate limiting or lockouts after too many failed 2FA attempts (even across sessions).
+
+Implement time-based limits — like X attempts per minute, per IP or account.
+
+Use proper CAPTCHA or delay mechanisms after failed logins.
+
+Monitor for high-volume requests to endpoints like /login2.
+
+Tie the 2FA token to a valid session, and invalidate old tokens after failed tries.
