@@ -1,0 +1,43 @@
+Lab: Basic SSRF against another back-end system
+Difficulty: Apprentice
+
+This one’s a nice intro to SSRF. The app has a “Check stock” feature that lets users check the inventory of a product. Behind the scenes, it's making a request to a back-end service — which is where the vulnerability comes in.
+
+The goal here is to use SSRF to scan the internal network, find an admin panel on port 8080, and then send a request to delete Carlos's account.
+
+Step-by-step
+I started by visiting any product page and clicking “Check stock.” Intercepted that request in Burp and saw this:
+
+POST /product/stock HTTP/1.1  
+...  
+stockApi=http://stock.weliketoshop.net:8080/product/stock  
+That stockApi parameter is the one we can mess with — classic SSRF spot.
+
+Sent the request to Burp Intruder, replaced the domain with an internal IP like:
+
+http://192.168.0.1:8080/admin
+Then selected the last octet (1), and marked it as the payload position. Set the payload type to Numbers, and configured it to try IPs from 1 to 255, stepping by 1.
+
+Kicked off the attack and sorted the results by status code. Most of them were timeouts or 403s, but one came back with a 200 — that was our target.
+
+Let’s say it was 192.168.0.198. I sent that request to Repeater and changed the path to:
+
+
+http://192.168.0.198:8080/admin/delete?username=carlos
+Sent it — got a 200 OK.
+
+Checked the main page again — Carlos’s account was gone. Lab solved.
+
+Root Cause
+The app blindly fetches URLs from user input with no validation.
+
+It trusts internal services way too much.
+
+There’s no access control on the internal admin interface.
+
+Fixes
+Whitelist only safe, allowed domains for server-side requests.
+
+Never allow raw URL input from users unless it’s validated.
+
+Internal admin interfaces should always require authentication, even if they’re “internal only.”
