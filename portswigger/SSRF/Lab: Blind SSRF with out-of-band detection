@@ -1,0 +1,32 @@
+Lab: Blind SSRF with Out-of-Band Detection
+Difficulty: Practitioner
+
+This one’s all about blind SSRF. The app runs some kind of analytics software that fetches the Referer header whenever you visit a product page. The goal is to abuse that to make the server send a request to Burp Collaborator.
+
+Since this is blind, we’re not gonna see anything in the browser — but if the server makes that outbound request, it’ll show up in Burp Collaborator logs.
+
+Step-by-step
+
+I started by visiting any product page and intercepted the request in Burp.
+
+Sent it to Repeater.
+
+Then I looked for the Referer header — it was there, pointing to the product page I had just come from.
+
+I right-clicked on it and used "Insert Collaborator Payload". That dropped in a unique URL tied to my Burp Collaborator session.
+
+Sent the request.
+
+Went over to the Collaborator tab and hit "Poll now".
+
+Waited a bit... and sure enough, got a DNS lookup and an HTTP interaction from the target. That confirmed the server reached out to my Collaborator domain — so the SSRF worked.
+
+That was enough to solve the lab.
+
+Takeaways
+
+The app blindly trusts the Referer header and fetches whatever URL you give it.
+
+That opens the door for SSRF, even though there’s no response — it’s all out-of-band.
+
+Good reminder: just because you can’t see the response doesn’t mean the attack didn’t work.
