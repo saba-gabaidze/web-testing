@@ -1,0 +1,41 @@
+Lab: SSRF with Blacklist-Based Input Filter
+Difficulty: Practitioner
+
+This one was all about bypassing bad SSRF defenses. The app lets you check product stock by sending a request to a backend URL, but it has some sketchy filters trying to block SSRF attempts.
+
+The goal: use SSRF to access http://localhost/admin and delete Carlos.
+
+Logged in as usual, visited a product page, and clicked “Check stock.” Intercepted the request in Burp and saw a stockApi parameter pointing to a URL like:
+
+
+POST /product/stock  
+stockApi=http://stock.weliketoshop.net/product/10/stock
+Sent it to Repeater. Changed the URL to http://127.0.0.1/ just to test — blocked.
+
+Tried http://127.1/ instead — and it worked. So clearly they’re blacklisting some IPs or keywords, but not all loopback tricks.
+
+Next, I tried http://127.1/admin — blocked again. That’s when I figured the filter is probably doing a dumb keyword match on /admin or something similar.
+
+To get around that, I double-encoded the “a” in “admin” like this:
+
+
+http://127.1/%2564dmin
+Boom — that slipped past the filter and loaded the admin panel.
+
+From there, I just hit the delete button next to Carlos’s account and that was it. Lab solved.
+
+What went wrong
+
+Relying on blacklists to prevent SSRF is never safe
+
+IP filtering didn’t account for all loopback notations like 127.1
+
+Blacklist-based keyword filtering is super easy to bypass with encoding tricks
+
+How to fix it
+
+Use a whitelist-based approach for allowed URLs
+
+Block access to internal IP ranges server-side, not just by string-matching
+
+Proper SSRF mitigation needs to happen at the network and application layer, not just in the frontend or with hacky filters
