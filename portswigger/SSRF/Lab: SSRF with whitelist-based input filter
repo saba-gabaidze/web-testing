@@ -1,0 +1,46 @@
+Lab: SSRF with whitelist-based input filter
+Difficulty: Expert
+
+This lab is all about sneaking around a server-side request forgery (SSRF) defense that uses a whitelist. The app lets users check stock using a stockApi URL parameter, and the server will make a request to that URL. The goal is to bypass the filter and get the server to request http://localhost/admin/delete?username=carlos.
+
+So, let’s break it down.
+
+First, I visited any product page and clicked on “Check stock.” Intercepted the request in Burp and saw this in the query:
+
+
+stockApi=http://stock.weliketoshop.net/product/1/stock
+Sent it to Repeater and tried a classic test — changed the host to 127.0.0.1. Nope. Got blocked. The app seems to be extracting the hostname and checking it against a whitelist.
+
+So the filter’s checking the hostname, but it might not be parsing URLs perfectly. Tried this next:
+
+
+http://username@stock.weliketoshop.net/
+That one was accepted. Interesting. Looks like it’s ignoring the username part and only looking at the hostname, which still points to a whitelisted domain.
+
+Then I tried breaking the parser a bit more by inserting a # after the username:
+
+
+http://username%23@stock.weliketoshop.net/
+It got rejected. But when I double URL-encoded the # like this:
+
+
+%2523
+…suddenly got a 500 Internal Server Error. That usually means something weird is going on server-side — good sign.
+
+At this point I realized I could inject localhost as the real host before the @, and let the whitelisted domain act as a decoy:
+
+
+http://localhost:80%2523@stock.weliketoshop.net/admin/delete?username=carlos
+Boom. That did it. The server made the request to localhost but thought it was whitelisted because of the clever URL formatting. Carlos’s account got deleted. Lab solved.
+
+Root Cause
+
+The app was validating the hostname but didn’t properly parse full URLs with embedded credentials and encoded characters. That let me trick it into sending a request to localhost by hiding it before an @ and throwing in some URL encoding to confuse the filter even more.
+
+Fixes
+
+Don’t just validate hostnames using string matching. Use a proper URL parser that resolves the full request destination.
+
+Normalize and decode URLs before applying any security logic.
+
+If possible, avoid using user-controlled URLs entirely and switch to safer designs (e.g., IDs that map to internal services).
