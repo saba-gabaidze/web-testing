@@ -1,0 +1,104 @@
+HTB Skill Assessment: File Upload Attacks – Walkthrough
+Difficulty: Intermediate
+
+The goal here was simple: exploit a file upload form and read a flag from the root directory. But getting there required chaining a few tricks together—XXE, MIME type bypass, RCE, and some directory traversal.
+
+Step 1: Initial Recon
+Started by poking around the app. Found a file upload form in the “Contact Us” section that lets users attach screenshots. That’s our in.
+
+I uploaded a normal .jpg image first just to see what the app does. It accepted it and displayed the image inline using Base64, so nothing was executed. But now I had a baseline.
+
+Step 2: Filter Evasion – Extensions
+Next, I wanted to see how the backend handles extensions. Used Burp Intruder along with a wordlist from PayloadsAllTheThings to try different variants like:
+
+.jpg.php
+
+.php5
+
+.pht
+
+.phar.jpg
+
+The .phar.jpg stood out. It responded with a slightly longer response than the others, which hinted that it might’ve passed through some of the filters. Noted that.
+
+Step 3: Filter Evasion – Content-Type
+Then I started fuzzing the Content-Type header to figure out what the app accepts. Found that image/svg+xml worked — and that opened the door to XXE.
+
+Step 4: XXE via SVG
+I crafted a simple malicious .svg payload and uploaded it:
+
+
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <text y="20">&xxe;</text>
+</svg>
+Sure enough, I got /etc/passwd dumped back in the response. So XXE was a go.
+
+Next, I took it further and used the php://filter wrapper to read source code from upload.php:
+
+
+<!ENTITY xxe SYSTEM "php://filter/convert.base64-encode/resource=upload.php">
+Decoded the response and got the source.
+
+Step 5: Understanding the Filters
+From upload.php, I learned that:
+
+Blacklist blocks extensions like .php, .php5, .phtml, etc.
+
+Whitelist only allows extensions like .jpg, .png, .svg (via regex)
+
+MIME-type check ensures files match image/*g
+
+Files are renamed using a timestamp and stored in user_feedback_submissions
+
+So, extensions like .phar.jpg or .phz.jpg could potentially pass all checks if the MIME is spoofed right.
+
+Step 6: Bypassing MIME & Gaining RCE
+Tried uploading a PHP shell as .phar.jpg, but it was blocked based on the MIME type.
+
+To get around that, I prepended a fake JPEG header (something like \xFF\xD8\xFF) to the PHP file. That tricked the MIME check and let the file pass as a valid image.
+
+Since I knew the file path pattern from the source, I was able to access it like this:
+
+/contact/user_feedback_submissions/250526_shell.phar.jpg?cmd=id
+The ?cmd=id confirmed RCE — the command ran and showed the current user.
+
+Step 7: Privilege Scope Escalation – Traversal
+From there, I used simple Linux commands to move around:
+
+pwd showed the current working dir: /var/www/html/contact/user_feedback_submissions
+
+Used cd ../../../.. to move up to root
+
+ls confirmed I was in /
+
+Found the flag file sitting there
+
+Finally, ran:
+
+
+cat flag_Not-The-Real-Path.txt
+Flag retrieved.
+
+What Made This Work
+XXE via SVG let me leak source code
+
+Understanding the filters gave me insight on how to name and format my payload
+
+Fake MIME header + crafted extension bypassed all file restrictions
+
+RCE gave me shell-like control via URL parameters
+
+Simple directory traversal let me reach / and read the flag
+
+AppSec Lessons
+Don’t rely only on extension or MIME-type validation
+
+Sanitize all inputs, especially things like XML
+
+Uploaded files should never land in a web-exposed, executable directory
+
+Disable dangerous PHP wrappers like php://filter in prod
+
+Always assume chained bugs can turn into full compromise
