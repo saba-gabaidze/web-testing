@@ -1,0 +1,35 @@
+Lab: Blind OS Command Injection with Time Delays
+Difficulty: Practitioner
+
+This one was about blind OS command injection — which means the server runs your command, but you don’t see the output. So instead of getting juicy results back directly, we rely on side effects. In this case: a noticeable delay.
+
+Here’s how it went down.
+
+Logged in with wiener:peter, then headed over to the feedback form. It looked normal — name, email, comment. Nothing suspicious at first glance.
+
+Submitted a quick test and intercepted the request in Burp. The email field looked like the most likely injection point. So I tried injecting a ping command that would delay the response:
+
+email=test@example.com||ping+-c+10+127.0.0.1||
+Basically saying: “Run ping 10 times and pause the server for about 10 seconds.”
+
+Sent it off and boom — the response took around 10 seconds to come back. No visible output, but the delay confirmed that the command ran.
+
+That was the goal. Lab complete.
+
+What went wrong
+
+The app is building a shell command using user input without sanitizing it.
+
+Even though it doesn’t show the command output, the fact that it runs it at all is a huge problem.
+
+This made it possible to execute arbitrary OS commands (blindly).
+
+Fixes
+
+Never pass user input directly into system-level commands.
+
+If you absolutely must run shell commands, use safe APIs and sanitize inputs properly.
+
+Prefer using higher-level language features (like built-in functions) instead of shelling out when possible.
+
+Blind or not, OS command injection is always bad news.
