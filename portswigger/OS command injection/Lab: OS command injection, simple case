@@ -1,0 +1,36 @@
+Lab: OS Command Injection, Simple Case
+Difficulty: Apprentice
+
+This one was pretty straightforward — the app has a stock checker feature that takes a product and store ID, and under the hood it’s running those through a shell command. That’s always a red flag.
+
+The goal here is to inject a command (whoami) and get it to run on the server so we can see which user the app is running as.
+
+Started by logging in and using Burp Suite to intercept the request when checking a product’s stock. The request looked something like this:
+
+GET /product/stock?productId=1&storeId=1
+Nothing strange there, but when I sent it to Repeater and tried playing with the storeId parameter, that’s where it got interesting.
+
+Changed it to:
+
+storeId=1|whoami
+and sent the request.
+
+The response came back with a clean output, and right in the body of the response, I saw the username of the server’s current user. That confirmed the command was being executed.
+
+Lab solved.
+
+Root Cause
+
+The application directly passes user input into a shell command without sanitization.
+
+That allows attackers to inject arbitrary commands using shell metacharacters like |, &&, etc.
+
+Fixes
+
+Never pass raw user input to system commands.
+
+Use safe APIs or parameterized functions instead.
+
+If you absolutely have to run shell commands, sanitize and validate all inputs carefully.
+
+Simple lab, but it shows how dangerous even a tiny injection point can be.
