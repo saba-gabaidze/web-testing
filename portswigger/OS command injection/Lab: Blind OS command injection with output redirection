@@ -1,0 +1,21 @@
+Lab: Blind OS command injection with output redirection
+Difficulty: Practitioner
+
+This lab had a blind OS command injection vulnerability in the feedback feature. Basically, the app runs a shell command using some user input, but it doesn’t show the command output directly. Instead, you have to be sneaky and redirect the output to a file.
+
+Lucky for us, there’s a writable folder /var/www/images/ where the app stores product images. So the trick is to inject a command that writes its output to a file in that folder. Then we can just request that file like an image and see what the command output was.
+
+Step-by-step:
+
+Use Burp Suite to intercept the request where feedback is submitted.
+
+Modify the email parameter to inject the command:
+
+
+||whoami>/var/www/images/output.txt||
+That basically runs whoami and sends the result to output.txt in the images folder.
+
+Next, intercept the request for loading a product image. Change the filename parameter to:
+
+output.txt
+When the app tries to load that “image,” it returns the contents of output.txt — which is the output of whoami
