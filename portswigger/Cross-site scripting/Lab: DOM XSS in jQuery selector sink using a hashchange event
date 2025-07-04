@@ -1,0 +1,14 @@
+Lab: DOM XSS in jQuery selector sink using a hashchange event
+Difficulty: Apprentice
+
+This one’s a classic DOM XSS where the home page uses jQuery’s $() selector on location.hash to scroll to a post. The problem is it doesn’t sanitize the hash, so you can inject code.
+
+I spotted the vulnerable code by inspecting the home page with Burp and browser devtools. The app basically takes whatever is after the # in the URL and passes it straight into a jQuery selector—yikes.
+
+To exploit it, I used the exploit server from the lab banner and crafted this payload in the Body:
+
+
+<iframe src="https://YOUR-LAB-ID.web-security-academy.net/#" onload="this.src+='<img src=x onerror=print()>'"></iframe>
+This payload loads the page and then modifies the hash to include an image tag with an onerror that calls print(). Since the app blindly uses the hash in a jQuery selector, it executes the injected code.
+
+I stored the exploit and clicked “View exploit” to confirm print() got called in the browser console. Then I went back to the exploit server and clicked “Deliver to victim.” Lab solved.
