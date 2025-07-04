@@ -1,0 +1,43 @@
+Lab: Reflected XSS into HTML context with all tags blocked except custom ones
+Difficulty: Practitioner
+
+This one looked weird at first. The app reflects user input into the page, but it blocks all HTML tags — except custom ones. So your usual <script> or <img> tricks don’t work here.
+
+But here’s the catch: custom tags are allowed. And the browser doesn’t really care if a tag is “real” or not. It’ll still parse it and run events like onfocus.
+
+So the trick is to:
+
+Inject a custom tag
+
+Add an onfocus handler to trigger alert(document.cookie)
+
+Use the URL hash to auto-focus that element when the page loads
+
+Here’s the payload:
+
+<xss id=x onfocus=alert(document.cookie) tabindex=1>
+Now to actually trigger the onfocus, I added #x to the end of the URL — which focuses the element with id="x" as soon as the page loads.
+
+Full URL-encoded payload looked like this:
+
+
+https://YOUR-LAB-ID.web-security-academy.net/?search=%3Cxss+id%3Dx+onfocus%3Dalert(document.cookie)+tabindex=1%3E#x
+Went to the exploit server, used this inside a <script> tag to auto-redirect Carlos:
+
+
+<script>
+location = 'https://YOUR-LAB-ID.web-security-academy.net/?search=%3Cxss+id%3Dx+onfocus%3Dalert(document.cookie)%20tabindex=1%3E#x';
+</script>
+Stored it, delivered to the victim, and bam — alert fired.
+
+Lab solved.
+
+What made this work
+
+The site allowed custom tags, which aren’t real HTML but still processed by the browser
+
+onfocus is a legit event handler even on made-up tags
+
+tabindex=1 makes the tag focusable
+
+The #x in the URL triggers the focus automatically
