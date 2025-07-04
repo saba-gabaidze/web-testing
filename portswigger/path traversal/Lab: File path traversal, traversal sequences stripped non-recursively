@@ -1,0 +1,28 @@
+Lab: File path traversal, traversal sequences stripped non-recursively
+Difficulty: Practitioner
+
+This one was about path traversal, but with a twist — the app tries to strip traversal sequences from the filename, but it only does it once. So you can trick it by stacking traversal sequences in a specific way.
+
+Here’s how I did it.
+
+Started by browsing around the app and looking at how product images were loaded. Each image was pulled via a filename parameter — looked like a good candidate for testing path traversal.
+
+Intercepted the request in Burp and modified the filename value to:
+
+
+....//....//....//etc/passwd
+Yeah, it looks weird, but that’s the trick. The app strips out a single instance of ../, so by using ....// (which turns into ../ after one pass), we can still escape the directory.
+
+Sent the request, and sure enough, the response came back with the contents of /etc/passwd.
+
+Lab solved.
+
+What went wrong
+
+The app tries to be smart and remove ../, but it only does it once. If you sneak in encoded or slightly obfuscated versions, like ....//, it turns into ../ after one pass and slips through.
+
+Fix
+
+Don’t try to sanitize input by stripping traversal strings manually — it’s too easy to bypass. Instead, use secure APIs that handle file paths properly and enforce strict whitelisting. Only serve files from a specific directory, and never allow user input to dictate file paths directly.
+
+Simple mistake, classic bypass.
