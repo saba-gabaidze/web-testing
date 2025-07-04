@@ -1,0 +1,24 @@
+Lab: DOM XSS in document.write sink using source location.search
+Difficulty: Apprentice
+
+This lab has a DOM-based XSS vulnerability in the site’s search tracking. Basically, the app uses document.write to output whatever’s in location.search directly into the page. Since we control the URL query, we can inject malicious code.
+
+First, I typed some random text into the search box and inspected the element. My text ended up inside an img src attribute, which means the input isn’t sanitized properly.
+
+To break out of the img tag and trigger code execution, I used this payload:
+
+
+"><svg onload=alert(1)>
+This closes the src attribute, adds an SVG tag with an onload alert, and runs the alert as soon as the SVG loads.
+
+Once I submitted that, the alert popped up, confirming the XSS.
+
+Root cause is pretty clear: using document.write with unsanitized user input from the URL query is dangerous and leads to DOM XSS.
+
+Fixes:
+
+Never use document.write with unsanitized data.
+
+Properly sanitize or encode user input before inserting it into the DOM.
+
+Consider safer ways to update the page content, like using textContent or templating frameworks.
