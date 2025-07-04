@@ -1,0 +1,20 @@
+Lab: Reflected XSS inside a template literal with special character escaping
+Difficulty: Practitioner
+
+This one was about a reflected XSS vuln in the blog’s search feature. The tricky part: the input gets reflected inside a JavaScript template literal, and angle brackets, single and double quotes are HTML-encoded, while backticks are escaped with Unicode. So, just injecting normal <script> tags doesn’t work.
+
+I started by typing some random text in the search box, then caught the request with Burp Suite and sent it to Repeater to play around.
+
+Looking at the response, I saw my input echoed inside a JS template string. The challenge was to break out of that template string context and run JavaScript code.
+
+The payload that worked was:
+
+
+${alert(1)}
+This executes the alert(1) inside the template literal because ${...} is how JS handles expressions inside template strings.
+
+To confirm it worked, I copied the full URL from Burp Repeater, pasted it into a fresh browser tab, and the alert popped up immediately.
+
+Lab done.
+
+The key takeaway: when your input is reflected inside JS template literals, escaping HTML characters won’t stop you from injecting code if you can use ${} expressions. Always sanitize input properly before inserting it into JavaScript contexts.
