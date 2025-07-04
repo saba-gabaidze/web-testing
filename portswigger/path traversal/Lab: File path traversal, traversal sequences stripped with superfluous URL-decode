@@ -1,0 +1,41 @@
+Lab: File path traversal, traversal sequences stripped with superfluous URL-decode
+Difficulty: Practitioner
+
+This one’s all about path traversal with some extra URL decoding tricks. The app tries to block traversal patterns like ../, but the filtering isn’t great. The key detail: it decodes the input after trying to block bad stuff. So we can sneak past the filters by double-encoding the traversal characters.
+
+The goal is to read /etc/passwd.
+
+Started by browsing around and noticed product images being loaded with a filename parameter, like:
+
+
+GET /image?filename=product1.jpg
+Intercepted the request in Burp and tried basic traversal:
+
+
+filename=../../../../etc/passwd
+Blocked.
+
+Then tried encoding the slashes:
+
+
+filename=..%2f..%2f..%2fetc%2fpasswd
+Still blocked.
+
+So I went one level deeper: double-encoded the slashes like this:
+
+
+filename=..%252f..%252f..%252fetc%252fpasswd
+Now we’re talking. The app didn’t catch it because the %25 is the encoded version of %, so when it decodes the input, it becomes:
+
+../../../../etc/passwd
+Which is the exact thing it was trying to block in the first place.
+
+Sent the request, and boom — full /etc/passwd dumped in the response.
+
+Lab solved.
+
+Takeaway
+
+Never rely on blacklisting or basic input sanitization for security. Double encoding tricks like this can easily bypass naive filters, especially when decoding happens at the wrong time.
+
+Want to block path traversal properly? Normalize the path after decoding, and don’t allow references outside the intended directory.
