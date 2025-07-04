@@ -1,0 +1,38 @@
+Lab: File Path Traversal – Traversal Sequences Blocked, Absolute Path Bypass
+Difficulty: Practitioner
+
+This one’s about path traversal, but with a twist. The app tries to block ../ sequences, but it still lets you supply an absolute path — which means you can bypass the filters if you know where to go.
+
+Logged into the lab and poked around the product images. I intercepted one of the requests that loaded an image and found a parameter like this:
+
+
+GET /image?filename=60.jpg
+The server was pulling files based on that filename, but apparently it was doing something like:
+
+
+/app/static/images/60.jpg
+Tried the usual ../etc/passwd, but it didn’t work — looked like they were blocking traversal sequences.
+
+So I thought, what if I just skip the traversal and give it a full path?
+
+Changed the request to:
+
+
+GET /image?filename=/etc/passwd
+Sent it, and yep — it worked. Got a clean dump of the /etc/passwd file in the response.
+
+No need to trick the traversal filter. Since the backend treats your input as relative to a base directory, passing an absolute path overrides that completely.
+
+Root Cause
+
+The app blocks simple traversal sequences like ../, but it still lets you pass an absolute path. That’s a problem when it doesn’t validate or restrict access to sensitive files outside the intended directory.
+
+Fixes
+
+Sanitize and validate file paths properly
+
+Use a whitelist of allowed filenames
+
+Never let user input directly influence file paths on the server
+
+Consider chroot jails or sandboxing to limit file access
