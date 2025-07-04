@@ -1,0 +1,38 @@
+Lab: Stored XSS in onclick event with HTML-encoded angle brackets and double quotes, plus escaped single quotes and backslashes
+Difficulty: Practitioner
+
+This lab is about a stored XSS vulnerability hidden inside an onclick event in the comment author’s name. The tricky part is that some characters like angle brackets and double quotes are HTML-encoded, and single quotes and backslashes are escaped, so you can’t just inject raw JavaScript easily.
+
+The goal is to submit a comment that triggers a JavaScript alert when you click the author’s name.
+
+Steps I took:
+
+Posted a comment with a random string in the “Website” field, like test123.
+
+Used Burp Suite to intercept the comment submission and sent the request to Burp Repeater.
+
+Then I loaded the page again and intercepted that request too, sending it to another Repeater tab.
+
+Noticed the random string from the “Website” field was reflected inside the onclick attribute of the author’s name link, but wrapped in encoded and escaped characters.
+
+Basically, it looked like this inside the onclick:
+
+
+onclick="doSomething('http://foo?&apos;-test123-&apos;')"
+So the trick was to inject a JavaScript URL that would call alert(1). I changed the “Website” field to this payload:
+
+
+http://foo?&apos;-alert(1)-&apos;
+After sending the modified request, I right-clicked the author’s name link on the page, copied the URL, pasted it in the browser, and clicked it. Boom — the alert popped up.
+
+Why this worked:
+
+The app tries to sanitize input by encoding angle brackets and double quotes and escaping single quotes and backslashes. But because it inserts your input inside an onclick attribute and uses single quotes around it, you can break out of that string context with &apos; and inject JavaScript.
+
+Fixes:
+
+Properly sanitize and validate inputs before injecting them into event handlers.
+
+Avoid inserting user-controlled data directly inside JavaScript contexts or event handlers.
+
+Use safer methods for handling events (like adding event listeners in JS rather than inline attributes).
