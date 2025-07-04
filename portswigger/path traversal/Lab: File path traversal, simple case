@@ -1,0 +1,32 @@
+Lab: File Path Traversal – Simple Case
+Difficulty: Apprentice
+
+Pretty straightforward one. The app lets you view product images, and the filename for the image gets passed in as a parameter. Turns out they’re not validating it properly, so you can climb up the directory tree and grab sensitive files.
+
+First, I loaded up Burp and intercepted the request when clicking on a product image. It looked something like this:
+
+
+GET /image?filename=60.jpg HTTP/1.1
+Cool. That filename parameter is what we’re after. I replaced the value with this:
+
+
+../../../etc/passwd
+So the request became:
+
+
+GET /image?filename=../../../etc/passwd HTTP/1.1
+Sent it, and sure enough, the response came back with the contents of /etc/passwd. Lab complete.
+
+Why it works
+
+The server’s just appending the filename to a path on the backend, like:
+
+
+/var/www/images/ + filename
+But with ../../../, you escape out of the images folder and point it to a system file instead. Since there’s no validation or sanitization, it just happily gives you whatever you ask for.
+
+Fix
+
+Validate the input. Make sure it only allows image file names and blocks any ../ sequences. Even better: don’t let users supply direct file paths at all—use IDs or references mapped server-side.
+
+Simple bug, but a classic.
