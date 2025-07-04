@@ -1,0 +1,18 @@
+Lab: Reflected XSS into attribute with angle brackets HTML-encoded
+Difficulty: Apprentice
+
+This lab has a reflected XSS in the blog search feature, but with a twist — angle brackets are HTML-encoded, so you can’t just inject a normal <script> tag. Instead, the input gets reflected inside a quoted attribute in the HTML.
+
+I started by submitting some random text in the search box to see where and how the input shows up. Using Burp Suite, I intercepted the search request and sent it to Burp Repeater to play around.
+
+Looking at the response, I noticed my input was reflected inside a quoted HTML attribute, meaning I couldn’t just insert angle brackets, since those get encoded and won’t break out of the attribute.
+
+So the trick is to break out of that attribute by injecting a payload that closes the quote and adds an event handler. I replaced my input with this payload:
+
+"onmouseover="alert(1)
+This closes the existing attribute value with the first ", then adds an onmouseover event that calls alert(1).
+
+To test it, I right-clicked the search results page, copied the URL, and opened it in a browser. When I hovered my mouse over the element containing the payload, the alert popped up.
+
+That confirmed the XSS worked, and the lab was solved.
+
