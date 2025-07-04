@@ -1,0 +1,20 @@
+Lab: Reflected XSS into a JavaScript string with angle brackets and double quotes HTML-encoded and single quotes escaped
+Difficulty: Practitioner
+
+This lab was about a reflected XSS vulnerability hidden inside a JavaScript string on the search page. The tricky part? Angle brackets and double quotes get HTML encoded, and single quotes are escaped with a backslash. So you can’t just inject your usual <script> tags or break out easily.
+
+What I did:
+
+First, I typed a random string into the search box and checked the request with Burp Suite. The input showed up inside a JavaScript string on the page.
+
+Then I tested breaking out of the string by submitting a payload with a single quote like test'payload. The single quote came back escaped as \', so that didn’t work.
+
+Next, I tried using a backslash like test\payload and noticed the backslash itself wasn’t escaped. That was the key.
+
+Using that, I crafted this payload to break out of the string and inject an alert:
+
+
+\'-alert(1)//
+When I put this in the URL and loaded the page, the alert popped up, proving I successfully broke out of the string despite all the escaping and encoding.
+
+So basically, even when some characters are encoded or escaped, creative payloads can still bypass those protections if you know how. The lesson here is to never trust client input inside JavaScript without proper sanitization or using safer methods like encoding or CSP.
