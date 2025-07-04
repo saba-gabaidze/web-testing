@@ -1,0 +1,46 @@
+Lab: Reflected DOM XSS
+Difficulty: Practitioner
+
+Alright, this one was about DOM-based reflected XSS, and the goal was simple: get alert(1) to fire using a payload in the search input.
+
+First, I searched for something random like XSS in the search bar. Nothing fancy, just wanted to see what the app did with input.
+
+In Burp, I caught the request and saw the response included this:
+
+
+{"searchTerm":"XSS","results":[]}
+Cool — so it’s reflected in JSON. From there, I looked at the JavaScript handling the response. In the searchResults.js file, I spotted this line:
+
+
+eval('var searchData = ' + xhr.responseText + ';');
+Uh-oh. They're literally passing the full response into eval() — that’s a red flag. If we can break out of the string inside that JSON and inject some JS, we’re in business.
+
+Tried a few things and noticed that while double quotes (") were being escaped properly, backslashes (\) weren’t. That’s the key.
+
+So I went with this payload:
+
+
+\"-alert(1)}//
+Let’s break that down:
+
+The \" escapes the first quote in the JSON.
+
+The backslash that was already in the JSON plus mine creates a double backslash, which effectively cancels out the escaping.
+
+The -alert(1) is just some JS to trigger the pop-up.
+
+The }// closes off the JSON object and comments out the rest, so the app doesn’t throw an error.
+
+Put it all together, and boom — alert(1) fired.
+
+Why this works
+
+The app blindly dumps the JSON response into eval(), and doesn’t escape backslashes. That gives us the chance to slip in arbitrary JS, break out of the intended structure, and hijack execution.
+
+Fixes
+
+Never use eval() on data that came from the user. There’s almost always a better, safer way.
+
+Always sanitize and validate inputs on both the client and server side.
+
+Avoid reflecting raw input in scripts unless it’s been properly escaped.
