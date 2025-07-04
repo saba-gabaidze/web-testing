@@ -1,0 +1,28 @@
+Lab: Stored DOM XSS
+Difficulty: Practitioner
+
+This one was about a stored DOM-based XSS in the blog comment section. The goal was simple: make an alert(1) pop up. The site tries to sanitize comments using JavaScript’s replace() function, but the implementation is weak.
+
+I dropped a test payload to see what’s happening and noticed that only the first < and > characters in the comment were being encoded. That’s because they used replace() with a string instead of a regular expression — so it only replaced the first match. Classic mistake.
+
+So to bypass it, I just added an extra pair of angle brackets at the beginning of the comment. That soaked up the bad filtering, and the actual payload stayed intact.
+
+Here’s what worked:
+
+
+<><img src=1 onerror=alert(1)>
+Posted it, reloaded the page, and alert(1) popped just like that. Lab done.
+
+Root Cause
+
+The app tries to prevent XSS by replacing < and > using JavaScript’s replace() method with a string — so only the first match is handled.
+
+That means later angle brackets stay untouched, letting us inject valid HTML/JS.
+
+Fix
+
+Don’t rely on client-side filtering to prevent XSS — it’s super easy to bypass.
+
+Sanitize user input properly before it gets to the DOM.
+
+Use trusted libraries like DOMPurify if you absolutely must handle HTML on the client side.
