@@ -1,0 +1,56 @@
+Lab: Reflected XSS into HTML context with most tags and attributes blocked
+Difficulty: Practitioner
+
+This one’s a fun challenge. The search functionality is vulnerable to reflected XSS, but there’s a WAF (web application firewall) in place that blocks all the usual stuff. Anything too obvious — like <script> or even an <img> with onerror — gets flagged immediately. The goal here is to trigger print() without needing any user interaction.
+
+So yeah, time to get creative.
+
+Step-by-Step
+Logged in and tested a basic payload like:
+
+
+<img src=1 onerror=print()>
+Blocked, as expected.
+
+So I opened Burp, used the search box, and intercepted the request. Sent it to Burp Intruder to start fuzzing.
+
+First, I tried testing which HTML tags are allowed. Replaced the search parameter with just <>, added a payload marker between the brackets like <§§>, and loaded in a full list of HTML tags from the XSS cheat sheet.
+
+Most of them triggered 400 errors, but interestingly, <body> returned a 200. So that’s one tag we can use.
+
+Next step: find which event handlers still work.
+
+Replaced the search value with:
+
+
+<body%20=1>
+Then added a marker just before the =: <body%20§§=1>
+
+Loaded in a list of event attributes (like onload, onmouseover, etc.). Ran the attack again.
+
+Almost all were blocked. But one stood out — onresize — it got through with a 200 OK. Nice.
+
+So the final payload became:
+
+"><body onresize=print()>
+Now I just needed to get it to execute. Since onresize only fires when the body gets resized, I wrapped the attack in an iframe and used onload on the iframe to resize it.
+
+Built the final exploit on the exploit server like this:
+
+
+<iframe src="https://YOUR-LAB-ID.web-security-academy.net/?search=%22%3E%3Cbody%20onresize=print()%3E" onload="this.style.width='100px'">
+Clicked Store and Deliver exploit to victim — and boom, lab solved.
+
+Why It Worked
+The WAF blocked most common tags and event handlers, but missed the combo of <body> + onresize
+
+onresize needs a trigger — in this case, resizing the iframe from the outside did the job
+
+The whole payload gets reflected into the HTML context, so no user interaction was needed
+
+Fixes
+Don’t reflect user input directly into HTML without proper encoding
+
+Use a modern CSP (Content Security Policy)
+
+Don’t rely on WAFs to block bad input — filter and encode it correctly at the source
