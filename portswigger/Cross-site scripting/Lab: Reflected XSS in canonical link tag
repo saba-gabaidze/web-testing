@@ -1,0 +1,40 @@
+Lab: Reflected XSS in Canonical Link Tag
+Difficulty: Practitioner
+
+This one’s all about sneaking in XSS through a link tag — specifically the rel="canonical" tag in the page’s <head>. Angle brackets are escaped, so no normal <script> injection. But we’re not going for a full-blown script tag here. Instead, we’re hijacking an HTML attribute and triggering code via an access key combo.
+
+The site reflects our input into this tag:
+
+
+<link rel="canonical" href="https://YOUR-LAB-ID.web-security-academy.net/?yourinput">
+Any < > you try to inject are escaped, so that’s off the table. But quotes? Still working.
+
+So the trick is to break out of the href attribute and inject a new one — specifically, something like:
+
+
+'accesskey='x'onclick='alert(1)
+This adds an accesskey to the element, and when a user hits the key combo tied to that key (x), the onclick fires.
+
+Final payload looked like this:
+
+
+https://YOUR-LAB-ID.web-security-academy.net/?%27accesskey=%27x%27onclick=%27alert(1)
+Note: that’s %27 for the ' characters — we’re URL encoding single quotes so it fits nicely in the URL.
+
+Then to test it, just hit:
+
+On Windows: ALT+SHIFT+X
+
+On Mac: CTRL+ALT+X
+
+On Linux: Alt+X
+
+Hit the combo and boom — alert box pops. Lab solved.
+
+Why this works
+
+Even though angle brackets are escaped, the input still ends up inside a quoted href attribute in the <link> tag. So we sneak out of that attribute and add our own: accesskey and onclick. Then it just waits for the right keyboard combo to fire.
+
+Takeaway
+
+Sometimes you don’t need to go for a full <script> tag to pull off XSS. If you can inject into attributes and trigger interaction (like access keys), that’s all you need. Creativity wins.
