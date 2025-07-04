@@ -1,0 +1,37 @@
+Lab: File path traversal, validation of file extension with null byte bypass
+Difficulty: Practitioner
+
+This one was all about classic path traversal — with a twist. The app tries to make sure you're only loading image files by checking the file extension. But it doesn’t handle null bytes properly, which means we can trick it into thinking we’re asking for a .png even when we’re not.
+
+So here’s what I did.
+
+First, I browsed around and noticed how product images were loaded. The request looked something like this:
+
+
+GET /image?filename=product1.png
+Intercepted it in Burp and tried the usual traversal payload:
+
+../../../etc/passwd
+Didn’t work. The server rejected it because it wasn’t a .png.
+
+But then I remembered the null byte trick. So I changed the filename to this:
+
+
+../../../etc/passwd%00.png
+The %00 is a null byte — it tells the server to stop reading the string there. So while the backend checks if it “ends in .png” and says “yep, looks good,” the file handler stops at /etc/passwd and serves that instead.
+
+Sent the request, and boom — got the contents of /etc/passwd in the response.
+
+Lab complete.
+
+Root Cause
+
+The server was validating file extensions with a simple string check, but didn’t account for null byte injection. That let us trick it into accepting a traversal path that bypasses the check.
+
+Fixes
+
+Never rely on string matching to validate file types
+
+Sanitize and normalize paths properly before accessing the file system
+
+Use strict allowlisting and avoid processing raw user input as file paths
