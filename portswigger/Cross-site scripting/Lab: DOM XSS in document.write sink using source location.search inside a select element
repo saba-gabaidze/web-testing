@@ -1,0 +1,22 @@
+Lab: DOM XSS in document.write sink using location.search inside a select element
+Difficulty: Practitioner
+
+This lab had a classic DOM XSS vibe. The page takes a storeId parameter from the URL query string, then uses document.write to add an option inside a <select> dropdown. Since it’s writing user-controlled data directly into the HTML without proper sanitization, it’s vulnerable.
+
+Steps I took:
+
+On a product page, I noticed the URL had storeId in the query string. The JavaScript pulled that value from location.search and wrote it into the dropdown using document.write.
+
+Tried adding a random string like storeId=abc123 to the URL and refreshed. Sure enough, the dropdown included abc123 as an option.
+
+I inspected the dropdown in dev tools and confirmed the value was directly inserted inside the <select> element.
+
+To exploit it, I needed to break out of the <select> tag and insert a payload that triggers an alert.
+
+So, I crafted this payload in the URL:
+
+
+product?productId=1&storeId="></select><img src=1 onerror=alert(1)>
+This closed the <select>, injected an <img> tag with an onerror alert, and triggered the popup.
+
+No surprises here. The issue is using document.write with unsanitized input straight from the URL, inside a sensitive HTML context. The fix would be to avoid document.write for dynamic content and properly sanitize or encode user input before injecting it into the DOM.
