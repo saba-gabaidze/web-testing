@@ -1,0 +1,19 @@
+Lab: Reflected XSS into HTML context with nothing encoded
+Difficulty: Apprentice
+
+This one was super straightforward. The search function reflects user input straight into the HTML without any kind of filtering or encoding. So the goal is simple: trigger a basic alert(1) using XSS.
+
+I opened the lab, looked at the search box, and typed in:
+
+<script>alert(1)</script>
+Clicked "Search" and boom — it popped.
+
+That’s it. Lab solved.
+
+Why it works
+
+The app takes whatever you type into the search bar and injects it directly into the page’s HTML. Since it doesn’t encode special characters like < or >, the browser just interprets the script like normal HTML. That’s classic reflected XSS.
+
+Fix
+
+Sanitize or properly encode all user input before reflecting it back into the page. In this case, escaping special characters would’ve stopped the attack.
