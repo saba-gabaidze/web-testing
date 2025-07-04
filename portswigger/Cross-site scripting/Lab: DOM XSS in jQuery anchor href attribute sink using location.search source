@@ -1,0 +1,32 @@
+Lab: DOM XSS in jQuery anchor href attribute sink using location.search source
+Difficulty: Apprentice
+
+This lab had a DOM-based XSS on the submit feedback page. Basically, the page grabs data straight from location.search and uses jQuery’s $ selector to set an anchor’s href attribute without sanitizing it. So whatever you put in the URL’s returnPath parameter ends up inside that link.
+
+The goal was simple: get the “back” link to run alert(document.cookie) when clicked.
+
+Steps I took:
+
+First, on the submit feedback page, I changed the returnPath query parameter to something harmless like /randomstring. Right-clicked the back link, inspected it, and yep, the random string showed up inside the anchor’s href.
+
+Then, I swapped out the returnPath value with this:
+
+
+javascript:alert(document.cookie)
+Hit enter, then clicked the back link, and boom — the alert popped up with the cookies.
+
+Root cause:
+
+The app takes unsanitized input from location.search
+
+Uses jQuery to inject it straight into an href attribute
+
+This allows arbitrary JavaScript to run when the link is clicked
+
+Fixes:
+
+Always sanitize or validate URL parameters before injecting them into the DOM
+
+Don’t put untrusted data directly into href attributes without escaping
+
+Better yet, avoid setting JavaScript URLs like this at all
