@@ -1,0 +1,28 @@
+Lab: DOM XSS in AngularJS expression with angle brackets and double quotes HTML-encoded
+Difficulty: Practitioner
+
+This one’s about DOM-based XSS, specifically in AngularJS. The key here is that the app is using AngularJS directives (like ng-app) to bind data, and the search input gets injected directly into a page element. Even though angle brackets and quotes are encoded, AngularJS still lets you execute expressions using double curly braces. That’s where the XSS comes in.
+
+Started off by typing some random stuff into the search bar, like test123, just to see where it ends up. Viewed the page source, and there it was—my input inside an element controlled by AngularJS, surrounded by double curly braces. So Angular is definitely evaluating that part.
+
+Tried a basic AngularJS payload next:
+
+
+{{$on.constructor('alert(1)')()}}
+Pasted it in the search box, hit search, and sure enough—alert box popped. Lab solved.
+
+Why it worked
+
+AngularJS parses expressions inside {{...}} if the page is using ng-app.
+
+Even though special characters are HTML-encoded, Angular doesn't care about that for expression parsing.
+
+{{$on.constructor('alert(1)')()}} is a common AngularJS gadget to break out and execute JS.
+
+Fix
+
+Never bind user input directly into AngularJS expressions.
+
+Use proper context-aware output encoding.
+
+Upgrade to a safer templating engine, or at the very least, sanitize untrusted inputs before binding.
