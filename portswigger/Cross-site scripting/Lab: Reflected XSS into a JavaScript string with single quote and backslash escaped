@@ -1,0 +1,34 @@
+Lab: Reflected XSS into a JavaScript string with single quote and backslash escaped
+Difficulty: Practitioner
+
+This lab had a reflected XSS vulnerability, but with a small twist. The user input gets reflected into a JavaScript string, and the app escapes both single quotes and backslashes, which makes breaking out of the string a little trickier than usual.
+
+I started by searching for a random string like abc123 in the search bar. Intercepted the request in Burp, sent it to Repeater, and looked at the response.
+
+Sure enough, my input showed up in a script block like this:
+
+
+var searchTerm = 'abc123';
+Tried something like:
+
+
+test'payload
+but it got reflected as:
+
+
+var searchTerm = 'test\'payload';
+So the single quote is being escaped with a backslash. That means we can’t break out of the string by just throwing a ' in — it gets neutralized.
+
+Instead of fighting with escaping, I decided to just close the script block entirely and start fresh with a new one. Tried this payload:
+
+
+</script><script>alert(1)</script>
+Sent that through Repeater, copied the full URL, pasted it in the browser, and boom — alert popped.
+
+Lab solved.
+
+Takeaway
+
+When you're dealing with XSS in JavaScript strings and escaping is in place, sometimes it's easier to sidestep the escaping completely and break out of the script context altogether.
+
+Always good to think about context — not just what’s reflected, but how it’s reflected.
