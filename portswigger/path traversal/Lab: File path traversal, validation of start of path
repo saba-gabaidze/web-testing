@@ -1,0 +1,24 @@
+Lab: File path traversal, validation of start of path
+Difficulty: Practitioner
+
+This one was a simple path traversal with a slight twist — the app tries to protect against traversal by checking if the path starts with the right folder. Sounds secure-ish, but not really.
+
+So the app loads product images using a filename parameter. If you intercept the request in Burp when it fetches an image, you’ll see something like:
+
+
+GET /image?filename=/var/www/images/product1.jpg
+Now, it's clearly expecting files from /var/www/images/, and it probably checks that your input starts with that path. But the app doesn’t fully resolve the path after traversal. So you can sneak in a ../ sequence after the legit path, and it won’t stop you.
+
+I changed the parameter to this:
+
+
+/var/www/images/../../../etc/passwd
+Sent the request — and it worked. Got a full dump of /etc/passwd right in the response. Lab done.
+
+Root Cause
+
+The app checks if the path starts with /var/www/images/ but doesn’t normalize or resolve the full path before using it. That means path traversal using ../ still works as long as the start looks fine.
+
+Fix
+
+Always resolve and normalize the full path after any user input is added, and make sure it’s still inside the intended directory. Better yet, avoid letting users specify full paths at all.
