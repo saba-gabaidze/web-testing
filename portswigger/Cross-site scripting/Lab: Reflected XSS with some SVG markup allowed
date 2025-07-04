@@ -1,0 +1,63 @@
+Lab: Reflected XSS with some SVG markup allowed
+Difficulty: Practitioner
+
+This lab was a fun one — classic reflected XSS, but with a twist. The site blocks common XSS tags like <script> or <img>, but it lets a few SVG-based ones slip through. Our job was to sneak in an alert(1) using whatever markup wasn’t filtered.
+
+Step-by-step
+
+Started with the usual go-to:
+
+
+<img src=1 onerror=alert(1)>
+Blocked right away — no surprise. The site clearly had some kind of filtering or WAF blocking known vectors.
+
+So I fired up Burp Intruder to get a better idea of what was allowed.
+
+1. Tag testing
+
+Used the site’s search functionality and sent that request to Intruder.
+
+Then I swapped out the search term with this:
+
+<§§>
+I pasted in the full list of HTML/SVG tags from the XSS cheat sheet and let it rip.
+
+Most got 400 Bad Request responses, but a few tags like <svg>, <animatetransform>, <title>, and <image> came back with 200 OK. That’s our in.
+
+2. Attribute testing
+
+Next up: figure out which event handlers are allowed inside those SVG tags.
+
+I used this payload:
+
+
+<svg><animatetransform%20§§=1>
+And tried injecting all the event attributes like onclick, onload, onmouseover, etc., using Burp Intruder again.
+
+Almost everything was blocked — except for onbegin. That one slipped through with a 200 response.
+
+So the final payload looked like this:
+
+
+"><svg><animatetransform onbegin=alert(1)>
+Pasted it into the search URL manually, and boom — alert popped.
+
+Lab solved.
+
+Why it worked
+
+The site was filtering out traditional tags and handlers, but SVG is a bit of a blind spot.
+
+onbegin is a lesser-known SVG animation event that still triggers JavaScript.
+
+Since animatetransform is a valid tag and wasn’t blocked, it gave us a vector.
+
+Fix
+
+You can’t just blacklist a few tags and call it a day.
+
+Proper output encoding is the real fix. Reflecting untrusted input directly into HTML without sanitizing or encoding is always a risk.
+
+Context-aware escaping is a must (especially when input lands in HTML, JS, or attributes).
+
+This lab was a good reminder that modern XSS isn’t just <script>alert(1)</script> anymore. Attackers get creative — and so should defenses.
