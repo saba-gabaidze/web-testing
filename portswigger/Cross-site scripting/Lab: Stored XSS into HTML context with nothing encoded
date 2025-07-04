@@ -1,0 +1,15 @@
+Lab: Stored XSS into HTML context with nothing encoded
+Difficulty: Apprentice
+
+This one’s a classic stored XSS in the comment section. The app doesn’t encode or sanitize anything in the comments, so whatever you put in gets saved and rendered straight into the page.
+
+To solve it, all you need to do is submit a comment with a simple script that triggers an alert when someone views the blog post.
+
+I just typed this into the comment box:
+
+<script>alert(1)</script>
+Filled in the name, email, and website fields like usual, hit “Post comment,” and then went back to the blog page. As soon as the blog loaded, the alert popped up — meaning the script ran successfully.
+
+Lab solved.
+
+Easy fix here would be to properly encode or sanitize user input before rendering it on the page to prevent scripts from running.
