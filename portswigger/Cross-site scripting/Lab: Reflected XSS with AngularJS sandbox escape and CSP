@@ -1,0 +1,47 @@
+Lab: Reflected XSS with AngularJS Sandbox Escape and CSP
+Difficulty: Expert
+
+This lab was a fun mix of AngularJS, CSP, and a little browser-specific trickery. The goal: pop an alert with document.cookie by bypassing CSP and escaping AngularJS’s sandbox.
+
+First thing I noticed was that the site uses AngularJS for rendering user input in the search parameter. Also, there's a CSP in place, so regular script tags or inline JS won’t work.
+
+So, the plan was to use AngularJS’s own features to sneak through CSP and run JavaScript in a clever way. Turns out, AngularJS filters can be abused pretty easily, especially when combined with certain events like ng-focus.
+
+Here’s the payload I used:
+
+<script>
+location='https://YOUR-LAB-ID.web-security-academy.net/?search=%3Cinput%20id=x%20ng-focus=$event.composedPath()|orderBy:%27(z=alert)(document.cookie)%27%3E#x';
+</script>
+I dropped that in the exploit server, stored it, and sent it to the victim. A second later — success. Alert popped.
+
+What’s going on here:
+
+I used a <script> tag on my exploit server to redirect the victim to a specially crafted URL on the target site.
+
+The search parameter injects an input element with an ng-focus directive.
+
+ng-focus=$event.composedPath()|orderBy:'(z=alert)(document.cookie)' is where the real magic happens.
+
+So why does that work?
+
+AngularJS uses | for filters, and here we’re abusing the orderBy filter. Inside the filter argument, we assign alert to a variable z and then call it with document.cookie. It only runs when the event's composed path reaches the window object — that’s how we escape AngularJS’s sandbox, which normally restricts access to global objects.
+
+Also, because we’re not directly referencing window, CSP doesn’t block us. No inline script execution, no eval, nothing obvious.
+
+Pretty slick trick.
+
+Root Cause
+
+AngularJS sandbox isn’t strong enough to block this kind of filter abuse
+
+The CSP in place wasn’t strict enough to stop template-based injection
+
+Reflected user input was being rendered in an AngularJS context without proper escaping
+
+Fixes
+
+Disable AngularJS template rendering in user-controllable areas, or use Angular’s strict contextual escaping
+
+Treat CSP as a backup layer, not your first line of defense
+
+Sanitize user input before inserting it into the DOM or Angular templates
