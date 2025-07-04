@@ -1,0 +1,20 @@
+Lab: DOM XSS in innerHTML sink using source location.search
+Difficulty: Apprentice
+
+This lab has a classic DOM-based XSS vulnerability in the blog search feature. The app takes data straight from location.search (the URL query string) and sticks it into the page using innerHTML. Obviously, that’s a recipe for trouble.
+
+The goal was to get an alert popup using XSS through the search box.
+
+What I did:
+
+I just typed this payload into the search box:
+
+
+<img src=1 onerror=alert(1)>
+When I hit search, the browser tried to load the image with src=1 which obviously doesn’t exist, so it threw an error. But because there’s an onerror handler on the tag, that error triggered the alert(1) call, popping up the alert.
+
+Basically, the app blindly inserts the URL parameter into the page using innerHTML without sanitizing it, letting me inject this tag and run arbitrary JavaScript.
+
+Fixing this means never using unsanitized data directly with innerHTML. Safer approaches would be to escape user input or use textContent instead.
+
+That’s it—simple but classic DOM XSS.
