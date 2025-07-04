@@ -1,0 +1,20 @@
+Lab: Reflected XSS into a JavaScript string with angle brackets HTML encoded
+Difficulty: Apprentice
+
+This lab had a reflected XSS vulnerability inside a JavaScript string on the search page. The tricky part was that angle brackets were encoded, so you couldn’t just inject normal <script> tags. The goal was to break out of the JavaScript string and trigger an alert.
+
+What I did:
+
+First, I typed a random string in the search box and intercepted the request with Burp Suite. Sent it to Burp Repeater to play with it.
+
+Looking at the response, I saw my input reflected inside a JavaScript string, but the angle brackets were encoded as &lt; and &gt;, so normal script tags wouldn’t work.
+
+The trick here was to break out of the string by injecting a payload that closes the current string and then calls alert(1).
+
+I used this payload:
+
+
+'-alert(1)-'
+This closes the existing string, adds a call to alert(1), and then adds some harmless stuff to keep the syntax valid.
+
+To verify, I copied the full URL from Burp Repeater, pasted it into the browser, and the alert popped up as expected.
