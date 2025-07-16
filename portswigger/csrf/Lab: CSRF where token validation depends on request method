@@ -1,0 +1,61 @@
+Lab: CSRF where token validation depends on request method
+Difficulty: Practitioner
+Vulnerability: Cross-Site Request Forgery (CSRF) — Token Validation Only on Certain HTTP Methods
+
+Summary
+This lab shows a sneaky kind of CSRF flaw. The app tries to protect you with a CSRF token when you update your email, but here’s the catch: it only checks the token if the request method is POST. If you switch it up and send the same request as a GET, the token check disappears.
+
+So, basically, the protection is half-baked. Attackers can abuse this by sending a GET request with your new email to change your address without needing the token.
+
+Steps Taken
+Logged in with the given creds (wiener : peter) and went straight to the email change form.
+
+Submitted the form normally and caught the request in Burp Proxy. It looked something like this:
+
+makefile
+Copy
+Edit
+POST /my-account/change-email
+csrf=abcdef12345
+email=something@web-security-academy.net
+Sent that to Burp Repeater and fiddled with the csrf token value — the server rejected the request when the token was invalid, so the token check works for POST requests. All good there.
+
+Then I right-clicked the request in Burp and used “Change request method” to switch the POST to GET, keeping everything else the same.
+
+Sent it off — and surprise! The server accepted the GET request without checking the CSRF token. That’s the flaw.
+
+Since the server blindly accepts the GET request and updates the email, that means we can craft a malicious HTML page that auto-submits this GET request to the victim’s browser, changing their email without their consent.
+
+Exploit
+I created a simple HTML page to exploit this, hosted on my Burp Collaborator exploit server:
+
+html
+Copy
+Edit
+<form action="https://YOUR-LAB-ID.web-security-academy.net/my-account/change-email" method="GET">
+    <input type="hidden" name="email" value="hacked@web-security-academy.net">
+</form>
+<script>
+    document.forms[0].submit();
+</script>
+Changed the email to something that’s clearly not mine, so it’s easy to spot the change.
+
+Stored this on the exploit server.
+
+Verified it worked by clicking "View exploit" and watching the email update request go through.
+
+Then sent it to the victim by clicking "Deliver to victim."
+
+Boom — email changed without needing a valid CSRF token. Lab solved.
+
+Root Cause
+The app only validates the CSRF token on POST requests, ignoring other methods like GET. Because the email change endpoint processes GET requests, an attacker can craft a GET request to change your email without a valid token.
+
+Fixes and Mitigation
+Don’t rely on HTTP method alone for CSRF protection.
+
+Require CSRF tokens on all state-changing requests, regardless of method.
+
+Avoid processing state-changing operations via GET requests — GET should be safe and idempotent by design.
+
+Implement proper server-side validation that rejects any unsafe GET requests or changes behavior to only allow POST with CSRF.
