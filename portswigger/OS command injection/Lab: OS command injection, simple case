@@ -1,7 +1,7 @@
 Lab: OS Command Injection, Simple Case
 Difficulty: Apprentice
 
-This one was pretty straightforward — the app has a stock checker feature that takes a product and store ID, and under the hood it’s running those through a shell command. That’s always a red flag.
+This one was pretty straightforward  the app has a stock checker feature that takes a product and store ID, and under the hood it’s running those through a shell command. That’s always a red flag.
 
 The goal here is to inject a command (whoami) and get it to run on the server so we can see which user the app is running as.
 
