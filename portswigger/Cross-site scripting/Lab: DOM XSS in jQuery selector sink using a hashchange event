@@ -1,14 +1,81 @@
-Lab: DOM XSS in jQuery selector sink using a hashchange event
-Difficulty: Apprentice
+DOM XSS in jQuery Selector Sink via Hashchange Event
 
-This one’s a classic DOM XSS where the home page uses jQuery’s $() selector on location.hash to scroll to a post. The problem is it doesn’t sanitize the hash, so you can inject code.
+Lab Difficulty: Apprentice
+Vulnerability Type: DOM-based Cross-Site Scripting (XSS)
 
-I spotted the vulnerable code by inspecting the home page with Burp and browser devtools. The app basically takes whatever is after the # in the URL and passes it straight into a jQuery selector—yikes.
+Summary
 
-To exploit it, I used the exploit server from the lab banner and crafted this payload in the Body:
+This lab demonstrates a DOM-based XSS vulnerability caused by unsafe use of jQuery’s $() selector with user-controlled input from the URL hash. The application takes the hash portion of the URL, decodes it, and injects it directly into a jQuery :contains() selector.
+
+Due to lack of input sanitization, an attacker can inject arbitrary HTML elements with JavaScript event handlers (e.g., onerror) to execute code in the victim’s browser.
+
+The lab objective is to trigger the print() function in the victim’s browser using this XSS flaw.
+
+Objective
+
+Deliver an exploit to the victim that executes the print() function by exploiting the jQuery selector-based DOM XSS.
+
+Technical Walkthrough
+1. Identify the Vulnerable Code
+
+On the home page, the following snippet is found:
+
+$(window).on('hashchange', function(){
+    var post = $('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');
+    if (post) post.get(0).scrollIntoView();
+});
 
 
-<iframe src="https://YOUR-LAB-ID.web-security-academy.net/#" onload="this.src+='<img src=x onerror=print()>'"></iframe>
-This payload loads the page and then modifies the hash to include an image tag with an onerror that calls print(). Since the app blindly uses the hash in a jQuery selector, it executes the injected code.
+Analysis:
 
-I stored the exploit and clicked “View exploit” to confirm print() got called in the browser console. Then I went back to the exploit server and clicked “Deliver to victim.” Lab solved.
+window.location.hash.slice(1) gets the hash part of the URL (without the #).
+
+This value is decodeURIComponent’d and inserted directly into a jQuery :contains() selector.
+
+No sanitization occurs, allowing arbitrary strings to break out of the :contains() expression.
+
+jQuery still returns an object even if no matching <h2> exists, enabling attackers to create elements dynamically.
+
+2. Exploit the Vulnerability
+
+We can inject an HTML element with a JavaScript event to execute code.
+
+Payload via hash:
+
+#<img src=1 onerror=print()>
+
+
+The img element will be created by jQuery.
+
+The src is invalid (1), triggering the onerror event.
+
+print() is executed in the victim’s browser.
+
+3. Deliver the Exploit
+
+Use an iframe pointing to the lab URL with the malicious hash:
+
+<iframe src="https://YOUR-LAB-ID.web-security-academy.net/#<img src=1 onerror=print()>"></iframe>
+
+
+Steps:
+
+Open the lab’s exploit server.
+
+In the Body section, add the iframe with the malicious hash.
+
+Store the exploit.
+
+Click View exploit to verify that print() is executed.
+
+Click Deliver to victim to complete the lab.
+
+Result
+
+The lab was successfully solved by exploiting a DOM-based XSS flaw. The print() function was executed in the victim’s browser using a crafted img element injected via the URL hash.
+
+Root Cause
+
+The application concatenated user-controlled input from the URL hash directly into a jQuery :contains() selector without sanitization.
+
+jQuery allowed element creation even when no actual <h2> matched, enabling JavaScript execution via element events like onerror.
