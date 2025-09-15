@@ -1,47 +1,56 @@
-Lab: Reflected XSS with AngularJS Sandbox Escape and CSP
-Difficulty: Expert
+Reflected XSS — AngularJS sandbox escape + CSP bypass
 
-This lab was a fun mix of AngularJS, CSP, and a little browser-specific trickery. The goal: pop an alert with document.cookie by bypassing CSP and escaping AngularJS’s sandbox.
+Lab Difficulty: Expert
+Vulnerability: Reflected XSS leveraging AngularJS expression evaluation (sandbox escape) + CSP bypass
 
-First thing I noticed was that the site uses AngularJS for rendering user input in the search parameter. Also, there's a CSP in place, so regular script tags or inline JS won’t work.
+Summary
 
-So, the plan was to use AngularJS’s own features to sneak through CSP and run JavaScript in a clever way. Turns out, AngularJS filters can be abused pretty easily, especially when combined with certain events like ng-focus.
+This lab shows a neat combo: the app reflects attacker-controlled HTML/attributes into the DOM and Angular compiles those attributes as expressions. By using an ng-focus expression that walks the event path and feeding it to the orderBy filter, we can assign alert to a local name and call it with document.cookie. That executes alert(document.cookie) even though CSP is present and Angular’s normal sandbox protections are supposed to block this. Interesting and slippery.
 
-Here’s the payload I used:
+Steps Taken
+
+Opened the exploit server for the lab and pasted the exploit script (replace YOUR-LAB-ID with the lab ID):
 
 <script>
-location='https://YOUR-LAB-ID.web-security-academy.net/?search=%3Cinput%20id=x%20ng-focus=$event.composedPath()|orderBy:%27(z=alert)(document.cookie)%27%3E#x';
+  location='https://YOUR-LAB-ID.web-security-academy.net/?search=%3Cinput%20id=x%20ng-focus=$event.composedPath()|orderBy:%27(z=alert)(document.cookie)%27%3E#x';
 </script>
-I dropped that in the exploit server, stored it, and sent it to the victim. A second later — success. Alert popped.
 
-What’s going on here:
 
-I used a <script> tag on my exploit server to redirect the victim to a specially crafted URL on the target site.
+Clicked Store and then Deliver exploit to victim (standard flow). Nothing flashy at first glance — just a stored payload.
 
-The search parameter injects an input element with an ng-focus directive.
+The victim (lab page) loads the reflected ?search= parameter which contains this element after URL-decoding:
 
-ng-focus=$event.composedPath()|orderBy:'(z=alert)(document.cookie)' is where the real magic happens.
+<input id=x ng-focus=$event.composedPath()|orderBy:'(z=alert)(document.cookie)'>#x
 
-So why does that work?
 
-AngularJS uses | for filters, and here we’re abusing the orderBy filter. Inside the filter argument, we assign alert to a variable z and then call it with document.cookie. It only runs when the event's composed path reaches the window object — that’s how we escape AngularJS’s sandbox, which normally restricts access to global objects.
+The fragment #x (or focusing the input) triggers the ng-focus expression. Angular evaluates the filter argument while iterating the event path array returned by $event.composedPath().
 
-Also, because we’re not directly referencing window, CSP doesn’t block us. No inline script execution, no eval, nothing obvious.
+The expression (z=alert)(document.cookie) runs in a context where alert is callable (we assigned it to z) and pops alert(document.cookie). Cookie displayed — lab solved.
 
-Pretty slick trick.
+Quick PoC (decoded):
+
+Injected element: <input id=x ng-focus=$event.composedPath()|orderBy:'(z=alert)(document.cookie)'>
+
+Trigger: focus the input (the URL uses #x to do this automatically)
+
+Result: alert(document.cookie)
 
 Root Cause
 
-AngularJS sandbox isn’t strong enough to block this kind of filter abuse
+The application reflects user-supplied HTML/attributes into the page and Angular compiles those attributes as expressions. Angular filters (like orderBy) evaluate argument expressions, and $event.composedPath() gives access to an array that can reach window-like contexts. The exploit uses an assignment trick (z=alert)(document.cookie) to avoid Angular’s direct global checks and execute in the needed scope. CSP didn’t block it because we never injected a <script> — we abused the app’s own JS (Angular) to evaluate attacker-controlled data.
 
-The CSP in place wasn’t strict enough to stop template-based injection
+Short version: attacker input turned into Angular-executed code — bad.
 
-Reflected user input was being rendered in an AngularJS context without proper escaping
+Fixes and Mitigation
 
-Fixes
+Never reflect untrusted input as HTML/attributes. Treat user input as data only. Escape/HTML-encode by default.
 
-Disable AngularJS template rendering in user-controllable areas, or use Angular’s strict contextual escaping
+Don’t let user input become Angular expressions or attributes. Never insert user data into ng-* attributes or any place the framework will compile or evaluate it.
 
-Treat CSP as a backup layer, not your first line of defense
+Use a strict sanitizer if you must allow HTML. Prefer built-in or well-audited sanitizers ($sanitize) and whitelist only safe tags/attributes — but be careful, sanitizers are easy to misuse.
 
-Sanitize user input before inserting it into the DOM or Angular templates
+Prefer safe bindings. Use text binding ({{ }} with proper escaping) or ng-bind over ng-bind-html unless sanitized.
+
+Layer defenses — CSP + encoding. CSP helps, but it’s not a silver bullet when the app’s own JS runtime evaluates attacker-controlled expressions.
+
+Audit all places where user input flows into templates or attributes. Anything that can become executable code must be blocked or sanitized.
