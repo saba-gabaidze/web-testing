@@ -1,0 +1,78 @@
+Reflected XSS via JavaScript URL in Product Return Button
+
+Lab Difficulty: Expert
+Vulnerability: Reflected Cross-Site Scripting (XSS)
+
+Summary
+
+This lab is a clever one. Basically, every product page has a Return button, which is actually a javascript: URL that posts some analytics before sending you back to the page.
+
+<a href="javascript:fetch('/analytics', {method:'post', body:'/post%3fpostId%3d5'}).finally(_ => window.location = '/')">Back to Blog</a>
+
+
+The fetch sends a POST with the current page’s postId.
+
+After that, the user gets redirected back.
+
+The tricky part: our input is reflected in this fetch body, which gives us a tiny XSS vector.
+
+Because fetch is a function, we can supply extra arguments to break out of the normal body and redefine things for XSS. Also, the input filter normally only accepts numbers, but & works as a bypass.
+
+Steps Taken
+
+Opened a product page. Noticed the Return button points to a JS URL that does analytics and redirects.
+
+Tried simple payloads like alert(1337) but blocked — normal stuff.
+
+Realized throw could trigger onerror if we could get it in there, but throw is a statement (doesn’t return a value), so we can’t just insert it directly.
+
+Used &'} to break out of the fetch body and start injecting code.
+
+Created an arrow function to legally wrap throw:
+
+x = x => { throw onerror = alert, 1337 }
+
+
+throw triggers an exception.
+
+onerror = alert means the browser calls alert with the thrown value.
+
+1337 is passed along as the argument for the alert.
+
+Assigned the function to window.toString as another argument:
+
+toString = x
+
+
+Now, we just need to force window to convert to a string, which triggers toString().
+
+Did the conversion:
+
+window + ''
+
+
+Boom — the arrow function executes, throw triggers onerror, and alert(1337) pops up. ✅
+
+Closed everything properly with {x:' to avoid breaking the JavaScript syntax.
+
+Root Cause
+
+The app reflects unsanitized input in a JavaScript URL and only blocks certain characters (like letters) but not &. This allowed creative use of:
+
+& to break out of the fetch body
+
+Arrow function expressions to legally wrap throw
+
+onerror as a way to convert a thrown value into an alert
+
+Together, this creates a reflected XSS vector inside what initially looks like a harmless “Back to Blog” button.
+
+Fixes and Mitigation
+
+Avoid reflecting user input in JavaScript contexts like javascript: URLs.
+
+Sanitize or encode any dynamic data inside JS URLs.
+
+Consider CSP to block inline scripts or javascript: links entirely.
+
+Always validate input server-side and limit characters when using it dynamically in JS.
