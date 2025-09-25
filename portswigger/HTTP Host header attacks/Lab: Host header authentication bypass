@@ -1,0 +1,55 @@
+Lab difficulty: Apprentice
+Vulnerability: Host header trust / authentication bypass
+
+Summary
+
+Simple one: the app decides whether you’re “local” (and thus allowed into the admin panel) based solely on the Host header. That’s a bad assumption — the server trusted whatever the client sent. By intercepting a request and changing Host to localhost, you can fool the app into thinking you’re a local user, open the /admin panel, and delete carlos.
+
+Steps taken
+
+Logged into the app with the provided account and just poked around the home page. Sent a GET / that returned 200 and sent that request to Burp Repeater (handy to play with headers).
+Request looked basically like:
+
+GET / HTTP/1.1
+Host: example.com
+...
+
+
+While in Repeater I tried changing the Host header to random values — nothing broke. The home page still returned 200. Nothing weird at first glance, which is already suspicious (Host shouldn’t normally gate access).
+
+Went to /robots.txt (always check it). It listed an admin path: /admin. Nice hint.
+
+Browsed to /admin in the browser — denied. The error message on the page said the admin panel is only accessible to local users. Interesting.
+
+Sent the GET /admin request into Burp Repeater. Then changed the Host header from whatever it was to:
+
+Host: localhost
+
+
+and hit send.
+
+Boom — the server responded with the admin panel HTML (status 200). So the app decided “if Host == localhost → local user → show admin”. That’s trusting client-sent Host.
+
+Inside the admin UI there were options for user management, including deleting users. To finish the lab, I modified the request line in Repeater to:
+
+GET /admin/delete?username=carlos HTTP/1.1
+Host: localhost
+
+
+Sent it, got a success response. Verified carlos was gone. Lab solved.
+
+Root cause
+
+The application is using the Host header as a trust boundary to determine privilege (local vs non-local). But Host is a client-controlled header — an attacker can send any value. The server never validated or enforced that the request actually came from a local source, so simply setting Host: localhost was enough to escalate access.
+
+Fixes & mitigation
+
+Never use client-controlled headers to decide authorization. Don’t base privilege checks on Host, X-Forwarded-*, or other headers without strong server-side verification.
+
+Enforce server-side access checks by source IP or authenticated roles. If something must be restricted to localhost, verify the request originates from a trusted network/interface (e.g., check the actual connecting IP, not the Host header).
+
+Whitelist/validate headers at the proxy/load-balancer level. If you need to rely on forwarded headers, have a trusted reverse proxy set them and strip any incoming client-set values.
+
+Return generic error messages. Avoid exposing implementation details like “only local users can access” — that hints at the access control mechanism and makes bypass easier.
+
+Defense-in-depth: require authentication and role checks for admin endpoints rather than relying on network-origin checks.
