@@ -1,0 +1,54 @@
+Routing-based SSRF – Privilege Escalation via Internal Admin Access
+
+Lab Difficulty: Practitioner
+Vulnerability: Routing-based Server-Side Request Forgery (SSRF)
+
+Summary
+
+This one’s a fun twist on SSRF. Basically, the app lets you control the Host header, and the server blindly sends requests based on it. That means you can trick the server into talking to internal IPs—like the intranet admin panel—and do admin stuff you normally wouldn’t be able to. In this lab, that “stuff” is deleting the user carlos.
+
+Steps Taken
+
+Logged into the lab and poked around. First thing I did was grab the GET / request that returned a 200, then sent it over to Burp Repeater.
+
+In Repeater, I swapped out the Host header with a Burp Collaborator payload just to check if the server would actually make requests to an arbitrary host. Hit send, polled Collaborator, and yep—network interactions showed up. Server totally made requests for me. Nice.
+
+Next, I switched over to Intruder. Set the same GET / request there and messed with the Host header:
+
+Deselect “Update Host header to match target”
+
+Delete the existing value
+
+Add 192.168.0.§0§ and set a payload position for the last octet
+
+For payloads, used numbers from 0 to 255, step 1. Started the attack. There was a warning about the Host header not matching the target—ignored it, obviously.
+
+Once the attack finished, sorted by Status. Found a single request that returned a 302 redirect to /admin. Sent that request to Repeater, changed the path to GET /admin and hit send. Boom—admin panel loaded. Access confirmed.
+
+Inside the admin panel, found the delete user form. It generates a POST to /admin/delete with a CSRF token and username parameter. Crafted the request manually:
+
+Path: /admin/delete
+
+Added the CSRF token from the panel
+
+username=carlos
+
+Added the session cookie from the Set-Cookie header
+
+Switched request method to POST in Burp
+
+Hit send, and carlos was gone. Lab solved.
+
+Root Cause
+
+Server blindly trusts the Host header. No validation, no filtering, nothing. That’s why we could pivot it to internal IPs and access the admin panel. Classic SSRF misstep.
+
+Fixes and Mitigation
+
+Don’t trust client-controllable headers for routing or sensitive actions.
+
+Validate and restrict any server-side requests to internal IPs.
+
+Implement proper network segmentation—internal admin panels shouldn’t be accessible from the public-facing app.
+
+Add CSRF and auth checks for sensitive actions.
