@@ -1,0 +1,59 @@
+User Role Can Be Modified in Profile Settings – Host Validation Bypass via Connection State Attack
+
+Lab Difficulty: Practitioner
+Vulnerability: SSRF / Host Header / Connection-Based Assumption
+
+Summary
+
+This one’s a bit tricky but really cool. The front-end server looks like it’s validating the Host header properly, but it actually assumes that all requests on a single connection are safe based on the first request it sees. By exploiting that, we can trick the server into sending requests to its internal admin panel at 192.168.0.1/admin. Once we’re in, we can delete users—like carlos.
+
+Steps Taken
+
+Started by sending a basic GET / request to the lab through Burp Repeater, just to see what comes back.
+
+First, tried changing the path to /admin and the Host header to 192.168.0.1.
+
+Hit send, and… yep, just got redirected to the homepage. Nothing yet.
+
+Next, I duplicated the tab and grouped both tabs together. This is where the connection trick comes in.
+
+On the first tab, changed the path back to / and Host back to my lab’s domain (YOUR-LAB-ID.h1-web-security-academy.net).
+
+Set the send mode to “Send group in sequence (single connection)” and added a Connection: keep-alive header.
+
+Sent the sequence and boom—the second request successfully accessed the admin panel. Nice.
+
+Inside the admin panel, there was a form to delete a user. Took note of:
+
+Action attribute: /admin/delete
+
+Input name: username
+
+CSRF token
+
+Then, on the second tab, replicated the request that the form would make, so it looked like this:
+
+POST /admin/delete HTTP/1.1
+Host: 192.168.0.1
+Cookie: _lab=YOUR-LAB-COOKIE; session=YOUR-SESSION-COOKIE
+Content-Type: x-www-form-urlencoded
+Content-Length: CORRECT
+
+csrf=YOUR-CSRF-TOKEN&username=carlos
+
+
+Sent it in the same single-connection sequence, and carlos was deleted. Lab solved.
+
+Root Cause
+
+The server blindly trusted the connection state—it assumed every request on the same connection was “safe” if the first one looked okay. That’s a classic routing-based SSRF flaw. By sending the requests in sequence over a single connection, we tricked it into accepting a Host header it shouldn’t have.
+
+Fixes and Mitigation
+
+Don’t make assumptions about the connection state—validate every request independently.
+
+Never trust the Host header from clients for internal routing.
+
+Properly isolate internal services from external-facing servers.
+
+Add server-side checks for sensitive paths, like admin panels.
