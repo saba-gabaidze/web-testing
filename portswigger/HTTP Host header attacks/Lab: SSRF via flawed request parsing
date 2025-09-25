@@ -1,0 +1,53 @@
+SSRF via Flawed Request Parsing – Practitioner
+
+Lab Difficulty: Practitioner
+Vulnerability: Server-Side Request Forgery (SSRF) / Routing-based
+
+Summary
+
+This one’s a fun SSRF lab. Basically, the app has a flaw in how it parses the request’s host. At first glance, it looks like you can’t mess with the Host header—but if you look closer, there’s a trick with absolute URLs that lets you make the server send requests anywhere, including the internal admin panel on 192.168.0.0/24. Once you hit the admin panel, you can delete users—like carlos.
+
+Steps Taken
+
+Logged into the lab and grabbed the normal GET / request that returned 200. Sent it over to Burp Repeater to poke around.
+
+The first thing I noticed: changing the Host header got blocked every time. Nothing weird at first glance.
+
+Then I tried using an absolute URL in the request line, like:
+
+GET https://YOUR-LAB-ID.web-security-academy.net/
+
+
+Interesting—now modifying the Host header didn’t trigger a block anymore. Instead, I got a timeout. This told me the server was validating the absolute URL instead of the Host header.
+
+Next, I confirmed with Burp Collaborator that I could make the server reach out to any URL I wanted. Inserted a Collaborator payload in the Host header and sent the request—got a hit. Nice, SSRF confirmed.
+
+From there, I used the Host header trick to scan the internal IP range 192.168.0.0/24 to find the admin panel. Once I spotted it, I switched the request in Repeater to hit /admin. Boom—the admin panel loaded, with a form to delete users.
+
+Finally, deleted carlos:
+
+Switched the absolute URL to /admin/delete.
+
+Copied the CSRF token from the response and added it as a query parameter.
+
+Added username=carlos as a parameter.
+
+Copied my session cookie into the request.
+
+Changed the method to POST.
+
+Sent it off—carlos was gone. Lab complete.
+
+Root Cause
+
+The app didn’t properly validate the host in all request contexts. By using an absolute URL in the request line, the server would happily make requests to internal IPs. Classic SSRF.
+
+Fixes and Mitigation
+
+Don’t blindly allow the server to fetch arbitrary URLs from user input.
+
+Validate hostnames against a whitelist on the server.
+
+Internal services should be firewalled off from public-facing apps.
+
+CSRF tokens and authentication should always be verified for admin actions.
