@@ -1,0 +1,69 @@
+Lab: DOM XSS using web messages and a JavaScript URL
+
+Difficulty: Practitioner
+Vulnerability: DOM-based XSS (via postMessage + JavaScript URL / redirect sink)
+
+Summary
+
+Short version: the app listens for postMessage() but does a sloppy check (indexOf("http:") || indexOf("https:")) instead of actually validating the origin or scheme. That means you can smuggle a javascript: payload plus the string http: to pass the check — then the app writes the message into location.href, which executes the javascript: URL. Result: arbitrary JS runs in the victim’s page (in this lab we call print()).
+
+Nothing fancy — just a classic “checks the string, not the meaning” bug. Interesting.
+
+Steps taken
+
+Opened the lab home page and inspected the JS. Found an addEventListener('message', ...) handler.
+
+The handler did something like:
+
+check if (msg.indexOf('http:') !== -1 || msg.indexOf('https:') !== -1) { location.href = msg; }
+
+sink = location.href (uh-oh).
+
+That indexOf check stood out: it only looks for the presence of the substring http: or https: anywhere in the message — not whether the message is actually a valid http(s) URL or where it comes from.
+
+Built a simple exploit page on the exploit server that embeds the lab page in an iframe and uses postMessage() to send javascript:print() plus //http: (so the string http: appears later). The lab page’s sloppy substring check passes, then the app assigns the message to location.href, which executes the javascript: URL and calls print().
+
+Exploit (put this on the exploit server body; replace YOUR-LAB-ID with your lab ID):
+
+<iframe src="https://YOUR-LAB-ID.web-security-academy.net/" 
+        onload="this.contentWindow.postMessage('javascript:print()//http:','*')">
+</iframe>
+
+
+Stored the exploit and delivered it to the victim. On load the iframe posts the message, the handler sees http: somewhere in the string, assigns it to location.href, and print() runs. Lab solved.
+
+Root cause
+
+Trusting data from postMessage() without validating origin and using a brittle substring check to “prove” the message is a URL.
+
+indexOf-style substring checks are easily abused (you can add http: anywhere).
+
+Assigning untrusted input to location.href allows javascript: scheme execution — a direct DOM XSS sink.
+
+Fixes & Mitigation
+
+Short, practical fixes:
+
+Don’t trust postMessage() data blindly:
+
+Use the origin parameter in the message event and confirm event.origin is a trusted origin before using event.data.
+
+In postMessage(), prefer specifying a concrete targetOrigin on send (not '*') and on receive check event.origin.
+
+Validate the scheme properly:
+
+Don’t use substring checks. Parse the value (e.g., new URL(value) in try/catch) and ensure the scheme is http/https if that’s expected.
+
+Explicitly forbid javascript: and other dangerous schemes (data:) when redirecting or assigning location.href.
+
+Avoid directly writing untrusted strings into navigation sinks:
+
+If you need to redirect, build the URL server-side or use a whitelist of allowed domains/paths.
+
+Add defense-in-depth:
+
+CSP to disallow javascript: execution (script-src 'self' etc.) and mitigate impact.
+
+Output-encode or sanitize any data that might reach the DOM.
+
+Wrap-up: the fix is simple — verify origin + validate the URL properly (not with indexOf) + never assign untrusted strings to navigation sinks. Do that and this class of DOM XSS goes away.
