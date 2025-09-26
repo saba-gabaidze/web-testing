@@ -1,0 +1,40 @@
+Lab: DOM-based open redirection
+
+Difficulty: Practitioner
+Vulnerability: DOM-based Open Redirect
+
+Summary
+
+Pretty straightforward: the blog post page has a “Back to Blog” link that builds its destination in the browser using location data. That client-side code pulls a url parameter and uses it directly — no server-side checks — so you can make that link send a victim to any site (in our case, the exploit server). Interesting and classic DOM-based open redirect.
+
+Steps taken
+
+Logged into the lab and opened the blog post page (postId=4) to poke around.
+
+Inspecting the “Back to Blog” link showed this weird onclick logic (simplified):
+
+<a href='#' onclick='returnURL' = /url=https?:\/\/.+)/.exec(location); if(returnUrl)location.href = returnUrl[1];else location.href = "/"'>Back to Blog</a>
+
+
+Nothing suspicious at first glance — it just looks like it tries to read a url pattern from the page URL and redirect to it.
+3. Sent the page URL to Burp Repeater (or just edited the address bar) and added a url parameter pointing to my exploit server. Example template:
+
+https://YOUR-LAB-ID.web-security-academy.net/post?postId=4&url=https://YOUR-EXPLOIT-SERVER-ID.exploit-server.net/
+
+
+(Replace YOUR-LAB-ID and YOUR-EXPLOIT-SERVER-ID with the actual IDs from the lab.)
+4. Visiting that constructed URL and clicking “Back to Blog” redirected the browser straight to my exploit server — success. Lab solved.
+
+Root cause
+
+The client-side JS blindly extracts a url from location and assigns it to location.href without validation. Because the logic runs in the browser, the server never checks or sanitizes the url parameter — so an attacker can craft a link that points victims anywhere.
+
+Fixes & mitigation
+
+Don’t build security-sensitive redirects purely in client-side JS. Server-side validation is required.
+
+If you must allow redirects from a parameter, validate the target against a whitelist of allowed domains (server-side).
+
+Prefer using only relative paths for internal navigation, or canonicalize and validate full URLs server-side before using them.
+
+On the client side, avoid trusting location parsing for redirect targets; do not do location.href = userControlledValue without checks.
