@@ -1,0 +1,54 @@
+Lab: DOM XSS via postMessage + JSON.parse()
+Lab Difficulty: Practitioner
+Vulnerability: DOM-based XSS — unsafe handling of postMessage() + JSON.parse()
+
+Summary
+
+Simple one — the app listens for message events, JSON.parse()s the message, and then trusts a url value to set an iframe src. No origin check, and the payload can be a javascript: URL. So if you can get the victim to load a page you control, you can send a crafted message that sets the iframe to javascript:print() (or any JS) and trigger arbitrary code in the victim’s context. Nice and classic DOM XSS.
+
+Steps Taken
+
+Opened the lab home page and inspected the JS.
+
+Found an event listener for message.
+
+It JSON.parse()s event.data and switches on data.type.
+
+The load-channel case sets ACMEplayer.element.src = data.url. No origin checking. Interesting.
+
+Built a simple exploit page on the exploit server that loads the lab page in an iframe and immediately postMessage()s the JSON string the listener expects.
+
+The iframe I used (replace YOUR-LAB-ID with your lab id) — put this in the exploit page body:
+
+<iframe src="https://YOUR-LAB-ID.web-security-academy.net/" 
+        onload='this.contentWindow.postMessage("{\"type\":\"load-channel\",\"url\":\"javascript:print()\"}","*")'>
+</iframe>
+
+
+Stored the exploit and delivered it to the victim (i.e., opened the exploit page or had the victim open it).
+
+When the iframe finishes loading, the exploit page sends the postMessage() with a JSON string.
+
+The lab page’s listener runs, JSON.parse()s the string, hits the load-channel case, and assigns javascript:print() to the player iframe src.
+
+The browser executes the javascript: URL in the context of the victim page — print() runs. Lab solved.
+
+Root Cause
+
+The page trusts data from postMessage() blindly:
+
+It parses incoming data with JSON.parse() and trusts data.type / data.url.
+
+There’s no origin check on event.origin or event.source, so any page can send messages.
+
+The app directly assigns attacker-controlled input to an iframe src, which allows javascript: URLs to execute.
+
+Fixes and Mitigation
+
+Always validate event.origin (and optionally event.source) in message handlers. Only accept messages from expected origins.
+
+Don’t JSON.parse() untrusted strings and then blindly use their fields for sensitive DOM operations — validate types and values (e.g., ensure url is an https: URL you expect).
+
+When setting iframe src, sanitize/whitelist destinations. Don’t allow javascript: scheme or other dangerous schemes.
+
+Prefer using a mapping of allowed channels to server-controlled URLs (server-side mapping) instead of letting the client send arbitrary URLs.
