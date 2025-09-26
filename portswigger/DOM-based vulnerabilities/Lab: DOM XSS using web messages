@@ -1,0 +1,44 @@
+Lab: DOM XSS via postMessage() (web messages)
+
+Lab Difficulty: Practitioner
+Vulnerability: DOM-based Cross-Site Scripting (DOM XSS) — unsafe handling of postMessage() / untrusted web messages
+
+Summary
+
+This lab shows a DOM XSS that happens because the page listens for message events and blindly inserts the message content into the DOM. In short: an attacker can use an iframe on an exploit page to send a crafted postMessage() to the victim page, which then injects that message into the page — and because the message contains an <img onerror=...> payload, the onerror fires and runs arbitrary JS (here, print()). Simple and effective.
+
+Steps taken
+
+Opened the lab and inspected the homepage. Found an addEventListener('message', ...) that takes incoming messages and inserts them into a div (looks used for ads). Nothing that sanitized the incoming HTML — red flag.
+
+Went to the exploit server to craft a page that will deliver a web message to the lab site.
+
+Added an iframe to the exploit page that loads the lab home URL and, when the iframe loads, sends a postMessage() containing an <img> tag with an onerror handler calling print(). Remember to replace YOUR-LAB-ID with your lab identifier.
+
+Exploit HTML (put this in the exploit server body):
+
+<!-- replace YOUR-LAB-ID with the lab host -->
+<iframe src="https://YOUR-LAB-ID.web-security-academy.net/" 
+        onload="this.contentWindow.postMessage('<img src=1 onerror=print()>','*')">
+</iframe>
+
+
+Stored the exploit and delivered it to the victim (opened the exploit page).
+
+When the iframe loaded, it sent the message to the lab page. The page’s message event handler inserted the string into the #ads div as HTML. The <img src=1> failed to load, triggering onerror, which executed print() — lab solved.
+
+Root cause
+
+The site trusted data coming from postMessage() and injected it into the DOM as HTML without validation or sanitization. postMessage() is a legit API, but you must treat messages as untrusted input. Here the app effectively allowed remote code execution in the victim’s DOM by inserting attacker-controlled HTML.
+
+Fixes and mitigation
+
+Never insert raw, untrusted HTML into the DOM. Use text-safe insertion (textContent) or a proper sanitizer if HTML is required.
+
+Validate origins in message handlers. Check event.origin (and optionally event.source) and only accept messages from known/trusted origins — don’t use '*' recklessly.
+
+Avoid innerHTML for content that can contain attacker input. If you must allow HTML, use a vetted sanitizer library (e.g., DOMPurify) configured safely.
+
+Use CSP as a second line of defense. A strict Content Security Policy can limit the impact of XSS, though it is not a substitute for fixing the underlying bug.
+
+That’s it — straightforward DOM XSS via web messages. Nothing weird at first glance; once you see postMessage() + innerHTML, start smiling and intercepting.
