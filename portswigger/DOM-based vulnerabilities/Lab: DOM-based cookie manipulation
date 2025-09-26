@@ -1,0 +1,49 @@
+Lab: DOM-based cookie manipulation
+
+Difficulty: Practitioner
+Vulnerability: DOM-based XSS via client-side cookie manipulation
+
+Summary
+
+Short version: the app stores the last product page visited in a client-side cookie (lastViewedProduct) and the home page later reads that cookie and injects it into the page without sanitizing. By forcing a victim’s browser to save a malicious URL into that cookie (via an iframe on the exploit server), the malicious payload runs when the victim next loads the home page — in this lab it calls print() so you'll see the print dialog pop up. Nice and sneaky.
+
+Steps taken (what I did)
+
+Opened the app and noticed the home page referenced a cookie named lastViewedProduct.
+
+Looks like the client stores the URL of the last product the user visited.
+
+Thought: if the app just stores whatever URL was opened, maybe I can get the victim’s browser to save a URL that contains JS.
+
+Went to the exploit server and added a simple iframe payload in the body. Replace YOUR-LAB-ID with your lab id:
+
+<iframe src="https://YOUR-LAB-ID.web-security-academy.net/product?productId=1&'><script>print()</script>" 
+        onload="if(!window.x)this.src='https://YOUR-LAB-ID.web-security-academy.net';window.x=1;">
+</iframe>
+
+
+Saved the exploit and delivered it to the victim (exploit server -> deliver to victim).
+
+Why this works: when the iframe first loads, the browser briefly navigates to the crafted product URL (note the appended '><script>print()</script>). The product page code sets the lastViewedProduct cookie to the current URL — so the poisoned URL gets written into that cookie.
+
+The onload handler in the iframe then forces the victim back to the home page: this.src='https://YOUR-LAB-ID...'. Victim thinks they just got redirected and never suspects anything.
+
+Now the home page reads lastViewedProduct and injects it into the DOM unsafely. Because the cookie contains a URL with embedded script, that script executes — print() runs, showing the print dialog. Bingo, DOM-based XSS via cookie manipulation.
+
+Root cause
+
+The site trusts and re-uses a client-controlled cookie value directly in the DOM without sanitization or encoding. The application assumes the cookie will only ever contain safe product URLs, but an attacker can make the victim’s browser save a crafted URL into that cookie (here via an iframe). Since the injection point is entirely client-side, it’s a DOM-based XSS triggered by a poisoned cookie.
+
+Fixes & mitigation (how to patch this)
+
+Don’t inject untrusted data into the DOM. Always sanitize and/or encode values before inserting them. Prefer textContent/setAttribute over innerHTML when possible.
+
+Validate and whitelist URLs. If you must store a “last viewed product”, only save a product ID (numeric) or a server-side canonical URL after validation — not the whole raw URL string from document.location.
+
+Make sensitive cookies HttpOnly where appropriate. If JS shouldn’t need to read/write a cookie, mark it HttpOnly so client-side scripts can’t tamper with it.
+
+Use a restrictive CSP. A CSP (Content Security Policy) that disallows inline scripts (and disallows unsafe-inline) makes exploitation harder, though it’s not a substitute for proper input handling.
+
+Avoid client-side trust boundaries. Anything that determines content shown to a user should be validated server-side or strictly controlled on the client.
+
+Escape before rendering. If you must render a URL or HTML fragment, escape it properly (URL-encode or HTML-encode) so it can’t contain executable script.
