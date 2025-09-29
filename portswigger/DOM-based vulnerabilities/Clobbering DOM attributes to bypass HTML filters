@@ -1,0 +1,75 @@
+Lab: Clobbering DOM attributes to bypass HTML filters
+
+Difficulty: Expert
+Vulnerability: DOM clobbering → HTML filter bypass → DOM-based XSS (print() triggered)
+
+Summary
+
+This lab abuses DOM clobbering in the HTMLJanitor sanitizer. The sanitizer iterates node.attributes and removes disallowed attributes — but if you create an element named attributes (yes, really), you can clobber that property so the sanitizer can’t iterate attributes properly. That lets you smuggle any attribute onto a whitelisted element. In this case we inject a form with onfocus=print() and an <input id="attributes"> that breaks the filter; then an exploit page focuses the form (via #id fragment + small delay) and print() runs in the victim’s browser. Works in Chrome (Firefox won’t behave the same).
+
+Simple idea: break the sanitizer by clobbering attributes, then shove an event handler onto a safe tag.
+
+Steps taken (casual walkthrough)
+
+Read the JS that sanitizes attributes. It loops over node.attributes:
+
+for (var a = 0; a < node.attributes.length; a += 1) {
+  var attr = node.attributes[a];
+  if (shouldRejectAttr(attr, allowedAttrs, node)) {
+    node.removeAttribute(attr.name);
+    a = a - 1;
+  }
+}
+
+
+Looks legit — except it assumes node.attributes is a normal NamedNodeMap with a length you can iterate.
+
+Found the shouldRejectAttr logic and the janitor init:
+
+let janitor = new HTMLJanitor({tags: {input:{name:true,type:true,value:true},form:{id:true}, ... }});
+
+
+So form.id is allowed; most other form attributes are not.
+
+Realized a DOM clobber trick: if you add an element with id="attributes" inside the node, the DOM exposes a property node.attributes that now points to that element (or a collection) rather than the real attributes NamedNodeMap. The sanitizer then reads .length as undefined (or otherwise breaks the loop), skipping its normal removal logic.
+
+Built the minimal payload that leverages this:
+
+<form id=x tabindex=0 onfocus=print()><input id=attributes>
+
+
+form is a whitelisted tag (form.id allowed) so it survives.
+
+onfocus=print() is an attribute that would normally be removed, but clobbering attributes prevents the sanitizer from stripping it.
+
+<input id=attributes> clobbers node.attributes.
+
+To get the victim to auto-run the onfocus, used the exploit server iframe trick:
+
+<iframe src=https://YOUR-LAB-ID.web-security-academy.net/post?postId=3 
+        onload="setTimeout(()=>this.src=this.src+'#x',500)">
+
+
+The iframe loads the vulnerable post (the one where we injected the comment).
+
+After a short delay it appends #x to the iframe’s URL, causing the browser to focus the element with id="x" (our form). That triggers onfocus → print().
+
+Delivered exploit to victim (store & deliver). On the victim’s browser, the iframe auto-triggers print() and the lab is solved.
+
+Why this works (root cause, short)
+
+DOM clobbering: An element inside the DOM can shadow/replace JS properties (like attributes) on nodes. The sanitizer assumes node.attributes is safe to iterate — wrong assumption.
+
+Sanitizer implementation: It uses node.attributes.length iteration and removes attributes by name; if node.attributes is clobbered, that logic can be bypassed.
+
+Over-trusting whitelisted tags/attrs: The janitor only allows a small attribute whitelist, but clobbering lets you attach disallowed attributes (e.g., onfocus) onto an allowed tag.
+
+Browser behavior: Focusing via fragment identifiers + timing works in Chrome for this scenario — hence Chrome-only reliability.
+
+Fixes & Mitigation — quick, practical
+
+Don’t iterate node.attributes trusting it’s safe. Use robust feature-detection and treat attributes as data, not as DOM objects you can blindly trust. For example:
+
+Use Element.prototype.getAttributeNames() which returns an array of attribute names (safer).
+
+Or access attributes via method calls and type-check the values.
