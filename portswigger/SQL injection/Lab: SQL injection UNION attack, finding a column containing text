@@ -1,0 +1,52 @@
+Lab: SQL injection — UNION attack to find a text column
+
+Difficulty: Practitioner
+Vulnerability: SQL Injection (UNION-based) — find a column that accepts string data
+
+Summary
+
+Basically: the product category filter is injectable and the app reflects query results back to you. That means you can use a UNION SELECT to pull data from nowhere (or other tables) — but first you need to know how many columns the original query returns and which of those columns can hold text. The lab gives you a random value; your goal is to make that value appear in the page by returning an extra row with it. Easy win once you find the right column.
+
+Steps taken (what I did — casual play-by-play)
+
+Logged in / opened the lab and went to the product listing where the category filter is used.
+— Target param: category (sent when you set the category filter).
+
+Turned on Burp and intercepted the request that sets the product category filter.
+— Sent that intercepted request to Repeater so I can safely fiddle with the category parameter.
+
+First I needed the number of columns the original query returns.
+
+I tried a UNION SELECT with NULL placeholders to see if it would accept it. The payload I used in the category parameter was:
+
+'+UNION+SELECT+NULL,NULL,NULL--
+
+
+(URL-encode if you’re pasting into the browser address bar; in Burp Repeater you can paste raw and let it encode.)
+
+The server returned a response (no error) and the page still rendered — that confirmed three columns are being returned by the original query. Nothing weird at first glance.
+
+Next I needed to find which column accepts string values (so the random lab string can be shown).
+
+The lab gave a random value (for example abcdef12345 — yours will be different).
+
+I replaced each NULL one at a time with that string until it showed up in the page. Example attempts:
+
+Try column 1:
+
+'+UNION+SELECT+'abcdef12345',NULL,NULL--
+
+
+If that throws an error or the string does not appear, try column 2:
+
+'+UNION+SELECT+NULL,'abcdef12345',NULL--
+
+
+Then column 3:
+
+'+UNION+SELECT+NULL,NULL,'abcdef12345'--
+
+
+One of those will render the random value on the products page — that’s your text-compatible column. In my run, putting the value in column X (replace X with whatever matched) caused the app to return an additional row containing the lab string. Interesting.
+
+Once the random value showed up, the lab was solved — you proved you can inject a UNION row with string data.
