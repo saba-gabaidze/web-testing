@@ -1,0 +1,44 @@
+Blind SQL injection — time-based (pg_sleep)
+
+Lab Difficulty: Practitioner
+Vulnerability: Blind SQL Injection (time-based) — tracking cookie
+
+Summary
+
+Nice one — the app puts the value of a tracking cookie straight into a SQL query. The returned rows (or errors) aren’t shown, so you can’t see results directly. But the query runs synchronously on the server, so you can time the response to infer stuff.
+In short: inject a pg_sleep() into the cookie, make the server pause, and bam — you’ve got a blind SQLi via time delays.
+
+Steps taken
+
+Logged in / opened the front page of the shop and started poking around.
+
+Fired up Burp Suite and intercepted the request for the front page (the one that included cookies).
+
+Noticed the TrackingId cookie being sent with the request. Nothing weird on the page itself — classic blind behavior.
+
+Sent the intercepted request to Burp Repeater and edited the TrackingId cookie value to this payload:
+
+TrackingId=x'||pg_sleep(10)--
+
+
+Forwarded the request. The server took ~10 seconds to reply. Interesting — that confirmed the injected pg_sleep(10) executed on the DB side.
+
+Confirmed by reverting the cookie to normal — response time was back to instant. Changed it again to the payload — 10s delay returned. Lab solved.
+
+Why it works (root cause)
+
+The app concatenates user-controlled cookie data directly into a SQL query without proper sanitization or parameterization. Because the app doesn’t return query results or errors, classic result-based detection won’t work — but the DB executes queries synchronously, so you can cause conditional delays (via pg_sleep) to leak information through timing.
+
+Also, the payload shows the DB is PostgreSQL (uses pg_sleep), and the query context allowed string concatenation and comment termination (--) to neutralize the rest of the query.
+
+Fixes & mitigation
+
+Use parameterized queries / prepared statements — never concatenate client data into SQL.
+
+Validate / sanitize any values coming from cookies or client inputs, and treat them as untrusted.
+
+Least privilege for DB accounts — reduce what injected SQL can do.
+
+WAF / rate-limiting can help detect or slow automated exploitation, but don’t rely on it as the primary defense.
+
+Avoid echoing internal timing or stack traces — and implement consistent response handling where possible (but the real fix is server-side param binding).
