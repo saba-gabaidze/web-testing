@@ -1,0 +1,57 @@
+Lab: SQL injection — UNION attack to read other tables
+
+Difficulty: Practitioner
+Vulnerability: SQL Injection (UNION-based) — data exfiltration from another table
+
+Summary
+
+Pretty straightforward one — the product category filter is directly injected into an SQL query. The app returns query results in the page, so you can use a UNION SELECT to pull rows from other tables. I used that to dump the users table (username + password) and then logged in as the administrator with the credentials I found.
+
+Steps taken
+
+Logged into the app and went to the product listing page. Clicked a category to see how the app filters results.
+Nothing weird at first glance — normal product list.
+
+Intercepted the category request with Burp. The query looked like a simple parameter (e.g. category=) being sent to the server. Sent it to Repeater to experiment.
+
+First I needed to figure out how many columns the original query returns and which ones accept text. I used this classic probe in the category parameter (URL-encoded / pluses used here for clarity):
+
+'+UNION+SELECT+'abc','def'--
+
+
+Response: the page displayed abc and def in the product output spots.
+
+Conclusion: the original query returns 2 columns, both accept text.
+
+With that confirmed, I crafted the UNION to pull data from the users table. Payload used in category:
+
+'+UNION+SELECT+username,password+FROM+users--
+
+
+(Again, URL-encode spaces or use + / %20 when sending in the request.)
+
+Sent it and inspected the app response — sure enough, the page contained rows showing usernames and passwords from the users table.
+
+Took the administrator username/password from that output and used it to log in to the application as administrator. Login successful — lab solved.
+
+Root cause
+
+The application builds SQL using user-supplied input (the category) without proper sanitization or parameterization. It trusts the client input and dumps query results straight back to the page. That lets an attacker append a UNION SELECT to the query and have the database return arbitrary table data.
+
+Also: the DB appears to store passwords in cleartext (or at least returns them directly), which makes this kind of extraction extra-damaging.
+
+Fixes & mitigation
+
+Use parameterized queries / prepared statements — never concatenate user input into SQL strings.
+
+Whitelist allowed category values (server-side). If categories are known (e.g., electronics, clothes), validate against that list and reject anything else.
+
+Least privilege DB account — the web app should use a DB account that cannot read arbitrary tables (only what it needs).
+
+Don’t show raw DB output in the UI — sanitize and encode any data rendered back to users.
+
+Store passwords securely — use a modern password hashing algorithm (bcrypt/argon2) and never keep or return plaintext passwords.
+
+Input validation & logging — detect anomalous input patterns and log them for review (and consider alerting on injection-like payloads).
+
+Error handling — avoid returning raw SQL/db errors to users (reduces info leakage).
