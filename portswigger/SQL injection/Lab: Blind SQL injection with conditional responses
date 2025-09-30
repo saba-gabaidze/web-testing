@@ -1,0 +1,99 @@
+Blind SQL injection — conditional responses
+
+Lab Difficulty: Practitioner
+Vulnerability: Blind SQL Injection (boolean/conditional) — information disclosure
+
+Summary
+
+Pretty classic blind SQLi: the app sticks the TrackingId cookie straight into a SQL query. The query’s results aren’t shown and there are no errors, but the page shows “Welcome back” when the query returns any rows. That gives us a boolean oracle — true/false answers — so we can ask the DB questions bit by bit and extract the administrator’s password. Fun, repetitive, but straightforward.
+
+Steps Taken
+
+Logged onto the app and opened the front page. Captured traffic with Burp Suite.
+The original cookie looked like:
+
+TrackingId=xyz
+
+
+Quick boolean test to confirm injection works:
+
+Modified cookie to:
+
+TrackingId=xyz' AND '1'='1
+
+
+Response: Welcome back present → condition TRUE.
+
+Then:
+
+TrackingId=xyz' AND '1'='2
+
+
+Response: Welcome back gone → condition FALSE.
+So we have control and can test boolean expressions.
+
+Confirmed the users table and admin user exist:
+
+Test for table:
+
+TrackingId=xyz' AND (SELECT 'a' FROM users LIMIT 1)='a
+
+
+→ TRUE (there is a users table).
+
+Test for administrator:
+
+TrackingId=xyz' AND (SELECT 'a' FROM users WHERE username='administrator')='a
+
+
+→ TRUE (there is an administrator user).
+
+Found password length (simple numeric test):
+Start checking LENGTH(password) > n with increasing n:
+
+TrackingId=xyz' AND (SELECT 'a' FROM users WHERE username='administrator' AND LENGTH(password)>1)='a
+
+
+Repeat for >2, >3, ... until the condition becomes FALSE.
+Result: password length = 20 characters.
+
+Extracted each character with Burp Intruder (because doing this manually is a pain):
+
+Use a cookie payload like:
+
+TrackingId=xyz' AND (SELECT SUBSTRING(password,1,1) FROM users WHERE username='administrator')='§a§
+
+
+— put the § markers around the tested character.
+
+In Intruder:
+
+Attack type: Simple list (or cluster bomb if doing offsets + chars together).
+
+Payloads: a–z and 0–9 (the lab hint says lowercase alphanumeric).
+
+Settings → Grep - Match: add Welcome back so the results show which payload returned TRUE.
+
+Start the attack, find which payload row has Welcome back ticked → that character is correct for position 1.
+
+Repeat for offset 2, 3, ... 20. (You can automate with cluster bomb to do all positions in one run, but single-position attacks are easier to follow.)
+
+After getting the full 20-char password, opened My account → logged in as administrator using the recovered password. Lab solved.
+
+Root Cause
+
+The app concatenates user-controlled cookie data into SQL without proper sanitization or parameterization. Because the application only exposes a boolean side-channel (“Welcome back” when rows exist), attackers can craft payloads to ask the database yes/no questions and slowly leak data. Backend trusts client-supplied data for SQL logic — classic SQLi root cause.
+
+Fixes and Mitigation
+
+Use parameterized queries / prepared statements everywhere. Never concatenate user input into SQL.
+
+Validate and sanitize inputs server-side (don’t rely on client-side checks).
+
+Don’t reveal functional side-channels: be careful returning different page states based on sensitive query results. Uniform error/response behaviour helps reduce oracles.
+
+Apply least privilege to DB accounts: the web app user should only have the minimal permissions needed.
+
+Add WAF detection rules for suspicious SQLi patterns (but treat WAF as mitigation, not primary defense).
+
+Monitor for abnormal request patterns (lots of similar requests with varying payloads — common in blind extraction).
