@@ -1,0 +1,70 @@
+Lab: SQL injection — UNION attack retrieving multiple values in a single column
+
+Difficulty: Practitioner
+Vulnerability: SQL Injection (UNION-based) — extracting multiple values into one returned column
+
+Summary
+
+Simple setup: the product category filter is vulnerable to SQL injection. The app reflects query results back to the page, and the original query returns two columns, but only one is textual. By using a UNION SELECT where we concat two fields into that single text column, we can leak username and password from the users table. Found the admin creds and logged in.
+
+Steps taken
+
+Logged into the app (if required) and navigated to the product listing page that uses a category parameter to filter products.
+— Nothing weird at first glance; just the normal product filter UI.
+
+Intercepted the request that sets the category filter with Burp Suite. The relevant parameter was category. Example intercepted request body (simplified):
+
+GET /filter?category=1 HTTP/1.1
+Host: vulnerable.lab
+...
+
+
+First goal: figure out how many columns the original query returns and which column is text. I tried a harmless test payload in the category parameter:
+
+'+UNION+SELECT+NULL,'abc'--
+
+
+Sent that and looked at the response.
+
+The page returned 'abc' in one of the result columns, so the query returns 2 columns and the second column accepts text. Good — we now know where to inject our concatenated data.
+
+Next, pull the users table data. Because only one column is text, I concatenated username and password into a single value (separated by a marker like ~) and injected it into that text column. Payload used:
+
+'+UNION+SELECT+NULL,username||'~'||password+FROM+users--
+
+
+(URI-encoded this when sending, or use Burp Repeater/Intruder with the raw payload — either works.)
+
+Sent the payload and inspected the response. The page now included lines like:
+
+admin~s3cr3tp4ss
+alice~password123
+bob~qwerty
+
+
+Nice — usernames and passwords leaked in cleartext right on the page.
+
+Took the administrator (or admin) username and its password from the output and used them to log in via the app’s login form. Successful login — lab solved.
+
+Root cause
+
+The application built SQL queries using user-supplied input without proper sanitization or parameterization, and the backend returned query results directly in the page. Also:
+
+The server didn’t restrict which columns or tables could be referenced via a UNION query.
+
+The app assumed the columns were safe and didn’t validate types or values coming from the database.
+All of that let us append our own UNION SELECT and return arbitrary data.
+
+Fixes & Mitigation
+
+Use parameterized queries / prepared statements everywhere — never concatenate user input into SQL.
+
+Least privilege: the DB account used by the application should not have SELECT access to sensitive tables (or at least not to full user password hashes). Ideally, auth data should be in a different schema or accessible only to the auth subsystem.
+
+Do not reflect raw DB output into the page without sanitizing it and applying strict server-side checks.
+
+Avoid leaking schema details (like column counts/types) in error messages or application responses.
+
+Store passwords hashed (bcrypt/argon2) — even if data is leaked, attackers shouldn't get plaintext passwords.
+
+Add WAF / input validation layers as a defense-in-depth measure, but don’t rely on them as the only mitigation.
