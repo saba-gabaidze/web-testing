@@ -1,0 +1,73 @@
+Lab: SQL injection with filter bypass via XML encoding
+
+Lab Difficulty: Practitioner
+Vulnerability: SQL Injection (UNION-based) with WAF bypass using XML entity encoding
+
+Summary
+
+This lab has an SQL injection in the stock-check feature. The app expects XML and sends back the query result in the response, so a UNION-style injection can leak data from other tables. A naive payload gets blocked by a WAF, but if you obfuscate the payload with XML entities (or hex entities) the WAF doesn’t spot it and the query runs. I used that to pull username and password from the users table, then logged in as admin.
+
+Steps Taken
+
+Logged into the app with the provided tester account to access the product stock check feature.
+
+Opened Burp and captured the POST to /product/stock. The request body looked like XML, with <productId> and <storeId> fields.
+
+First I poked the storeId to see if it was evaluated server-side — tried simple math to confirm it wasn’t just a string:
+
+<storeId>1+1</storeId>
+
+
+Response changed (returned stock for store 2). Nothing weird at first glance — the app was evaluating that input.
+
+Next I tried to discover the query shape and column count. I appended a UNION to the storeId:
+
+<storeId>1 UNION SELECT NULL</storeId>
+
+
+That request got blocked — server/WAF flagged it as an attack. Interesting.
+
+Bypassing the WAF
+
+Because the input is inside XML, I tried obfuscating the payload with XML entities so the WAF wouldn’t see plain UNION SELECT. I used Hackvertor in Burp: highlight the payload → Extensions → Hackvertor → Encode → dec_entities/hex_entities. That converts the payload into something like &x3…; style entities.
+
+After replacing the storeId value with the encoded payload and resending, the request went through normally — the app responded without the WAF block. That told me the WAF did naive pattern matching and didn’t decode entities before checking.
+
+Crafting the exploit
+
+I needed to figure out how many columns the original query returned. Trial-and-error showed the query expects one column (if I returned more, the app returned 0 units — an error).
+
+Because only one column could be returned, I concatenated username and password into a single value. The DB here concatenates with ||, so I did:
+
+<storeId><@hex_entities>1 UNION SELECT username || '~' || password FROM users</@hex_entities></storeId>
+
+
+(Note: that @hex_entities is Hackvertor’s wrapper for encoded XML entities; your encoded payload will look like entity sequences.)
+
+Sent that request, and the response included rows with username~password. Bingo — I now had the admin credentials in plain text.
+
+Used the admin creds to log in and solved the lab.
+
+Root Cause
+
+The server builds SQL queries using untrusted client input and doesn’t parameterize or properly validate it.
+
+The app returns query results directly in the response, so leaked columns reveal sensitive data.
+
+The WAF performs simple pattern matching and does not decode XML entities before inspection, so encoding the payload bypasses the filter.
+
+Fixes and Mitigation
+
+Use parameterized queries / prepared statements — never concatenate user input into SQL.
+
+Validate server-side: ensure storeId is expected type (e.g., integer) and reject or coerce anything else. Don’t rely on client-side checks.
+
+Do not return raw DB values in responses. If you must return data, only return safe, minimal fields — never raw credentials.
+
+Hash passwords properly (bcrypt/argon2). Plain-text passwords in the DB are a disaster.
+
+Harden WAF rules: decode/normalize inputs (XML entities, URL encoding) before applying signatures. But WAFs are a safety net, not a replacement for secure coding.
+
+Least privilege for DB accounts — the app account should have minimal permissions so dumping whole tables is harder.
+
+Proper error handling — don’t reveal SQL errors or query output in responses.
