@@ -1,0 +1,93 @@
+Lab: Visible error-based SQL injection
+
+Difficulty: Practitioner
+Vulnerability: Error-based SQL Injection (via tracking cookie)
+
+Summary
+
+This lab is a textbook error-based SQL injection. The app blindly inserts the value of a tracking cookie into a SQL query and prints verbose DB errors. By poking the TrackingId cookie you can force SQL errors that leak data — here the users table — and eventually pull the administrator’s password. Then you log in as admin and finish the lab. Easy, noisy, and effective.
+
+Steps taken
+
+Logged into the app using Burp's embedded browser and looked around.
+Nothing obvious in the UI, so I opened Proxy → HTTP history to inspect requests.
+
+Found a GET / request that included a TrackingId cookie. Took that request into Repeater to experiment.
+
+Appended a single quote to the cookie value to see how the server reacts:
+
+TrackingId=ogAZZfxtOKUELbuJ'
+
+
+Response: a verbose SQL error showing the full query and telling me there's an unclosed string literal. That confirmed the cookie value is placed inside a single-quoted SQL string. Nothing weird at first glance — just a clear injection point.
+
+Tried commenting out the rest of the query to fix the syntax error:
+
+TrackingId=ogAZZfxtOKUELbuJ'--
+
+
+Result: error disappeared. Good — the comment successfully truncated the rest of the query and made it syntactically valid.
+
+Started adapting the injection to run a subquery. First test was a generic SELECT 1 cast to int:
+
+TrackingId=ogAZZfxtOKUELbuJ' AND CAST((SELECT 1) AS int)--
+
+
+Response: new error saying the AND condition must be a boolean expression. In other words, the DB expects something like 1 = CAST(...) (a boolean), not a bare int.
+
+Fixed the boolean requirement:
+
+TrackingId=ogAZZfxtOKUELbuJ' AND 1=CAST((SELECT 1) AS int)--
+
+
+No error — that’s syntactically valid. Now replace 1 with a real column to leak data:
+
+TrackingId=ogAZZfxtOKUELbuJ' AND 1=CAST((SELECT username FROM users) AS int)--
+
+
+But I got the original error back. Looking closer, the query in the server response looked truncated — the app was limiting cookie length or request size, so my comment markers at the end were being cut off and the injection didn't terminate the query correctly.
+
+To free up space for a longer payload, I deleted the original cookie value and used an empty (shorter) prefix, then re-sent:
+
+TrackingId=' AND 1=CAST((SELECT username FROM users) AS int)--
+
+
+This time the server ran the query and returned a DB-level error indicating the query returned more than one row. That tells us the subquery executed but returned multiple usernames.
+
+Restrict the subquery to one row:
+
+TrackingId=' AND 1=CAST((SELECT username FROM users LIMIT 1) AS int)--
+
+
+Response: the error message contained the string "administrator". Boom — the first username leaked.
+
+Now swap username for password to leak the admin password:
+
+TrackingId=' AND 1=CAST((SELECT password FROM users LIMIT 1) AS int)--
+
+
+The error message leaked the administrator’s password.
+
+Used the stolen password to log in as administrator via the app’s login form. Success — lab solved.
+
+Root cause
+
+The application inserts user-controlled cookie data directly into a SQL query and prints verbose database errors. There are two failures here:
+
+Improper input handling: untrusted client data is used directly in SQL.
+
+Excessive error feedback: database errors are shown to users, leaking query structure and returned values.
+
+Together they allow an attacker to craft payloads that cause the database to reveal sensitive data.
+
+Fixes & mitigation
+
+Use parameterized queries / prepared statements. Don’t concatenate user input into SQL strings.
+
+Sanitize and validate inputs. Even for cookies or analytics fields, treat them as untrusted.
+
+Limit error output. Don’t expose raw DB errors to users — log them server-side but show generic error messages to clients.
+
+Least privilege DB accounts. The DB account used by the web app should have minimal permissions (avoid SELECT on unrelated tables when not needed).
+
+WAF / input filtering as a belt-and-braces measure. Can help detect common injection patterns, but don’t rely on it alone.
