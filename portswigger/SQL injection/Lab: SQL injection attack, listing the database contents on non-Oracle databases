@@ -1,0 +1,59 @@
+Lab Difficulty & Vulnerability Type
+
+Practitioner — SQL Injection (UNION-based) — Information Disclosure
+
+Summary
+
+Simple one: the product category filter is injectable. The app shows query results directly in the response, so we can use a UNION SELECT to pull data from other tables (like the users table). Goal was to find the table that holds usernames/passwords, enumerate its columns, dump the creds, then log in as administrator. Pretty classic SQLi info-disclosure — noise-free and effective.
+
+Steps Taken
+
+Logged into the app with a normal account (just to make sure the app behaves like a user).
+
+Opened Burp Suite and intercepted the request that applies the product category filter. The vulnerable parameter was category (sent in the request when selecting a category).
+
+First we need to know how many columns the original query returns and which columns can show text. Tried this payload in category:
+
+'+UNION+SELECT+'abc','def'--
+
+
+Nothing weird at first glance — but the response showed abc and def in the results, so the query returns two columns, both of which accept/display text. Good — now we can UNION arbitrary text into the page.
+
+Next: list tables in the database. Used information_schema.tables (non-Oracle DB) and pulled table_name into the first text column:
+
+'+UNION+SELECT+table_name,+NULL+FROM+information_schema.tables--
+
+
+The response returned a list of table names. Scanned them for anything that looked like users/auth/credentials — found a table named something like users_abcdef (your lab will have the exact name).
+
+Now enumerate columns of that users table. Replace users_abcdef with the real table name from step 4:
+
+'+UNION+SELECT+column_name,+NULL+FROM+information_schema.columns+WHERE+table_name='users_abcdef'--
+
+
+The response showed the column names for that table. I looked for likely username/password columns — in this lab they were username_abcdef and password_abcdef.
+
+Dump usernames and passwords using those column names:
+
+'+UNION+SELECT+username_abcdef,+password_abcdef+FROM+users_abcdef--
+
+
+The page returned a table with all usernames and their corresponding passwords. From that output I picked the administrator row, copied the password.
+
+Logged out (or opened a new session) and logged in as administrator using the password retrieved. Login successful — lab solved.
+
+Root Cause
+
+The app constructs SQL queries using unsanitized user input for the category filter and concatenates results into the response. Because the backend returns query results directly and doesn’t parameterize the query or validate inputs, an attacker can append a UNION SELECT to combine arbitrary rows from other tables into the response. Also: the app exposes schema metadata indirectly (by returning table/column values), which makes enumeration trivial.
+
+Fixes and Mitigation
+
+Use parameterized queries / prepared statements for any SQL that includes user input — never concatenate raw input into SQL.
+
+Whitelist category values (e.g., only accept known category IDs), and validate input server-side (type-check, length-check).
+
+Limit error and data exposure: don’t reflect raw database values into page content in a way that makes schema enumeration easy.
+
+Least privilege DB user: the DB account used by the app should not have broad privileges to read system metadata if possible.
+
+WAF / web input sanitization can add an extra layer, but don’t rely on it as a primary defense.
