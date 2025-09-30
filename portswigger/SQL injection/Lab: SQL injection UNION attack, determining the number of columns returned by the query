@@ -1,0 +1,63 @@
+Lab: SQL injection — UNION attack to find number of columns
+
+Lab Difficulty: Practitioner
+Vulnerability: SQL injection (UNION-based) — discovering number of columns
+
+Summary
+
+Short version: the product category filter is injectable. The page echoes query results, so you can use a UNION SELECT payload to append rows from arbitrary queries — but the UNION only works when the number of columns and their types line up.
+This lab is just the classic first step: figure out how many columns the original query returns by sending UNION SELECT NULL,... and adding NULLs until the app stops erroring and shows the extra row. Simple and satisfying.
+
+Steps taken
+
+Logged in and navigated to the product listing, then set the category filter to something normal to capture the request.
+Nothing weird at first glance — just a GET/POST with a category param.
+
+Intercepted the request with Burp Suite and sent it to Repeater. Example (GET-style) request:
+
+GET /?category=Electronics HTTP/1.1
+Host: lab.example
+...
+
+
+Tried the obvious quick test — append a UNION with a single NULL:
+
+category=Electronics'+UNION+SELECT+NULL-- 
+
+
+Response: error page (SQL error or broken page). Interesting — injection is hitting the query, but column count mismatch.
+
+Sent the request again, this time with two NULLs:
+
+category=Electronics'+UNION+SELECT+NULL,NULL-- 
+
+
+Still error. Kept adding NULL columns one by one:
+
+...'+UNION+SELECT+NULL,NULL,NULL-- 
+...'+UNION+SELECT+NULL,NULL,NULL,NULL-- 
+
+
+At some point the error disappeared and the page returned normally — but with extra content or an extra row that contains NULL placeholders (often you can see empty fields where the NULL values mapped to columns). That’s the signal that the UNION succeeded.
+
+The number of NULLs you had to include is the number of columns returned by the original query. Example: if ...NULL,NULL,NULL-- was the first that worked then the original query returns 3 columns.
+
+(If the app masks errors, an alternative technique is to use ORDER BY with increasing indices — e.g. category=1' ORDER BY 1--, ORDER BY 2-- — and see when it fails. But UNION NULL is usually fastest when the response reflects query rows.)
+
+Root cause
+
+The application builds SQL using user-supplied input for the category filter without proper sanitization or parameterization. That lets an attacker inject SQL (including UNION) and force the database to run attacker-controlled queries. The server also returns query results in the page, which makes it trivial to verify when a UNION succeeded.
+
+Fixes & mitigation
+
+Short and to-the-point:
+
+Use parameterized queries / prepared statements. Never concatenate raw input into SQL.
+
+Validate and whitelist category values (e.g., use internal IDs or enums).
+
+Apply least-privilege DB accounts so even if injection occurs, damage is limited.
+
+Don’t return raw DB errors to the user — they leak info. Use generic error messages and log details server-side.
+
+Use an ORM or strong input validation libraries where appropriate.
