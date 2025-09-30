@@ -1,0 +1,76 @@
+Lab: SQL injection — enumerate DB type & version (Oracle)
+
+Difficulty: Practitioner
+Vulnerability: SQL Injection (UNION-based) — product category filter
+
+Summary
+
+Pretty straightforward SQLi lab. The category parameter is injected directly into a query and you can use a UNION SELECT to pull arbitrary data. The trick here is Oracle: you use FROM dual for single-row selects and v$version (and its BANNER column) to get the DB version string. End goal: display the database version string.
+
+Steps taken
+
+Opened the app and filtered products by category to see what request gets sent.
+Intercepted the request in Burp while switching category — the request looked like a simple GET/POST with a category parameter.
+
+Tried a quick test payload to see if UNION worked and to determine number/types of columns.
+I suspected two columns (title/description or name/price), so I tested with two text columns:
+
+URL-encoded payload (sent as the category value):
+
+'+UNION+SELECT+'abc','def'+FROM+dual--
+
+
+Or human-friendly:
+
+' UNION SELECT 'abc','def' FROM dual --
+
+
+Result: the page returned both abc and def in the product list — so the query returns 2 columns and both accept text. Nothing weird at first glance, which is exactly what you want.
+
+Now that I knew the column count and that text shows, I replaced the dummy strings with a query that pulls the Oracle version. Oracle exposes version info in v$version and the BANNER column contains the human-readable version string:
+
+Payload used:
+
+'+UNION+SELECT+BANNER,+NULL+FROM+v$version--
+
+
+(URL-encoded when sent)
+
+Notes:
+
+BANNER is the text column we want.
+
+The second column in the UNION must exist, so I used NULL as a placeholder for the other column.
+
+The -- comment chops off the rest of the original query so our injected UNION runs cleanly.
+
+Sent the injected request. The response showed the Oracle version string on the page (something like Oracle Database 12c Enterprise Edition ...). Lab solved.
+
+Proof / example intercepted request
+
+(Example where category is a GET param — exact structure depends on the lab)
+
+GET /filter?category=' +UNION+SELECT+BANNER,+NULL+FROM+v$version--  HTTP/1.1
+Host: target
+Cookie: session=...
+
+
+Response contained the DB version displayed in the product area.
+
+Root cause
+
+The backend concatenates the category parameter directly into an SQL query and doesn’t validate or use parameterized queries. That lets an attacker append a UNION SELECT and return arbitrary rows/columns. The app also renders returned database text directly in the page, so v$version.BANNER shows up.
+
+Fixes & mitigation
+
+Use parameterized queries / prepared statements — never concatenate user input into SQL.
+
+Validate & whitelist input (e.g., allow only known category IDs or names).
+
+Limit DB privileges for the web app user — it shouldn’t be able to read system views like v$version.
+
+Avoid exposing DB metadata in responses. Don’t display raw DB output back to users.
+
+Apply output encoding where appropriate (to prevent other injection/XSS issues).
+
+Use least privilege and monitor queries for unusual UNION/select patterns.
