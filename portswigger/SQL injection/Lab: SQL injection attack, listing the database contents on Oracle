@@ -1,0 +1,57 @@
+Lab Difficulty & Vulnerability Type
+
+Practitioner — SQL Injection (UNION-based) — Information Disclosure
+
+Summary
+
+Simple and classic: the product category filter is injectable and the app prints query results straight into the response. That means a UNION-based SQLi works nicely against the Oracle backend. Using UNION + dual and Oracle dictionary views (all_tables, all_tab_columns) we can enumerate schema objects, find the users table/columns, dump creds, and log in as administrator. Nothing magical — just noisy and effective.
+
+Steps Taken
+
+Logged into the app and navigated to a page that lists products and lets you filter by category.
+
+Intercepted the request that contains the category parameter with Burp Suite. The parameter looked normal at first glance.
+
+Tested for number of columns & text columns with a quick UNION probe (Oracle needs FROM dual when selecting constants). I used this payload in the category parameter:
+
+'+UNION+SELECT+'abc','def'+FROM+dual--
+
+
+Response showed two columns and both accepted text — good, so we have UNION SELECT <col1>, <col2> usable.
+
+Enumerated table names using Oracle dictionary view all_tables. Payload used:
+
+'+UNION+SELECT+table_name,NULL+FROM+all_tables--
+
+
+That dumped table names into the page. From the list I identified a table that looked like it held credentials (in this lab it was USERS_ABCDEF).
+
+Enumerated column names for that table with all_tab_columns:
+
+'+UNION+SELECT+column_name,NULL+FROM+all_tab_columns+WHERE+table_name='USERS_ABCDEF'--
+
+
+That returned column names — I spotted USERNAME_ABCDEF and PASSWORD_ABCDEF.
+
+Dumped usernames and passwords from the users table:
+
+'+UNION+SELECT+USERNAME_ABCDEF,+PASSWORD_ABCDEF+FROM+USERS_ABCDEF--
+
+
+That printed all users and their passwords in the web response. I grabbed the admin password, logged in as administrator, and the lab was solved.
+
+Root Cause
+
+The app constructs SQL queries using untrusted input from the category parameter and concatenates it directly into the query without sanitization or use of parameterized statements. Because the result of that query is echoed to the response, an attacker can inject a UNION SELECT to append arbitrary rows from other tables. The backend being Oracle changes the syntax slightly (need FROM dual for constant selects and the all_* views for schema info), but the fundamental failure is the same: user input is trusted and executed as SQL.
+
+Fixes and Mitigation
+
+Use prepared statements / parameterized queries — never concatenate user input into SQL.
+
+Apply strict input validation: only allow expected category identifiers (e.g., whitelist numeric IDs or known slugs).
+
+Principle of least privilege: the DB user used by the application should not have access to dictionary views like all_tables/all_tab_columns unless absolutely necessary.
+
+Avoid echoing raw database responses into HTML. Don’t display raw SQL output back to the user.
+
+Add WAF/IPS rules to detect obvious UNION-based payloads as a defense-in-depth measure (not a replacement for fixing the code).
