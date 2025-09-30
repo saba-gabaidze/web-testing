@@ -1,0 +1,93 @@
+Lab: SQL injection — enumerate database type & version
+
+Difficulty: Practitioner
+Vulnerability: SQL injection (UNION-based) — product category filter
+
+Summary
+
+Pretty classic: the product category filter is injectable. The app builds a SQL query using user-supplied category data and doesn’t sanitize it. By using a UNION SELECT you can append your own query and return arbitrary values in the response — which means you can pull the DB version string and tell whether it’s MySQL or Microsoft SQL Server (MSSQL).
+
+Nothing weird at first glance — just a filter — but the server trusts what the client sends.
+
+Steps taken
+
+Logged into the lab and navigated to the products page. Filtered by category to see how the app behaves when a category is chosen.
+
+Put Burp Suite in the middle and intercepted the request that contains the category parameter (this is the parameter the lab hints at).
+
+First goal: figure out how many columns the backend query returns and which columns can hold text. Easy way: try a UNION with two dummy strings and see what shows up.
+
+Payload used in category:
+
+'+UNION+SELECT+'abc','def'#
+
+
+(URL encoding / use Burp Repeater — the + stands for space in the example; # comments out the rest for MySQL.)
+
+Result: both abc and def showed up in the page output → the query returns two columns and both can contain text.
+
+Now pull the DB version. For MySQL, the version is available from @@version. I crafted a UNION that returns @@version in the first column and a filler (NULL) in the second:
+
+MySQL payload:
+
+'+UNION+SELECT+@@version,+NULL#
+
+
+Sent it, refresh page — the DB version string showed up in the product/list output. Lab solved for MySQL.
+
+If the target is Microsoft SQL Server (MSSQL) the approach is the same conceptually, but small syntax differences matter:
+
+MSSQL uses -- for comment (and often needs a space after --).
+
+@@version also works in MSSQL.
+
+MSSQL payload example (use -- to comment):
+
+' UNION SELECT @@version, NULL-- 
+
+
+(URL-encode as needed for the request.)
+
+If the app runs MSSQL, that payload will return the MSSQL version string in the response.
+
+Verified by observing the version string in the web page output: it clearly contained MySQL (or Microsoft SQL Server) and the version number — so success.
+
+Why this worked (root cause)
+
+The app builds SQL using user-controlled input without proper sanitization/parameterization. More specifically:
+
+The backend concatenates the category value directly into a SQL statement.
+
+It accepts additional SQL via the input (no filtering), so a UNION query can be appended.
+
+The application doesn’t validate the number or types of columns returned by UNIONed queries.
+Result: attacker-controlled SELECTs can be returned in the normal page output.
+
+Fixes & mitigation
+
+Short and practical:
+
+Use parameterized queries / prepared statements. Never concatenate user input into SQL strings.
+
+Whitelist accepted category values. If the app expects a fixed set of categories, validate against that list on the server.
+
+Escape / validate inputs as a defense-in-depth measure (but don’t rely on escaping only).
+
+Least privilege DB account. The web app DB user should have minimal rights (read-only where possible; avoid admin-level privileges).
+
+Remove detailed DB info from error pages/response. Don’t echo DB version or stack traces to users.
+
+WAF and monitoring. Detect and block suspicious payloads (UNION, @@version, typical SQLi patterns), and alert on anomalies.
+
+Quick reference (copy-paste-ready)
+
+Test number of columns:
+'+UNION+SELECT+'abc','def'# (MySQL style comment)
+
+MySQL version payload:
+'+UNION+SELECT+@@version,+NULL#
+
+MSSQL version payload:
+' UNION SELECT @@version, NULL--
+
+(Encode payloads appropriately when sending through browsers/tools.)
