@@ -1,77 +1,41 @@
-Reflected XSS into Attribute with Angle Brackets HTML-Encoded
+Stored XSS — anchor href attribute (double-quotes HTML‑encoded)
 
 Lab Difficulty: Apprentice
-Vulnerability Type: Reflected Cross-Site Scripting (XSS)
+Vulnerability: Stored Cross‑Site Scripting (XSS) — injection into an anchor href attribute
 
 Summary
 
-This lab demonstrates a reflected XSS vulnerability in which user input is reflected inside a quoted HTML attribute. Although angle brackets (< and >) are HTML-encoded to prevent direct injection of <script> tags, an attacker can still escape from the attribute context and inject JavaScript event handlers to achieve script execution.
+Simple stored XSS in the comments. The app reflects whatever you put into the Website field into an anchor href for the comment author, but it HTML‑encodes the double quotes. That looked safe at first — until I noticed you can still inject a javascript: URL. So if you post javascript:alert(1) as the website, the author link becomes a JS URL that runs when opened. Easy win in the lab.
 
-The lab objective is to execute arbitrary JavaScript by triggering an alert.
+Steps Taken
 
-Objective
+Logged into the app and navigated to the post with the comment form.
 
-Inject a payload that escapes from the quoted attribute and executes alert(1) in the victim’s browser.
+In the Website field I first submitted a random alphanumeric string (e.g. abc123XYZ) so I could track where the value ends up. Intercepted the POST with Burp and forwarded it.
 
-Technical Walkthrough
-1. Reconnaissance
+Opened the post page in the browser, intercepted the GET with Burp and sent that request to Repeater. In the response I found my random string reflected inside an anchor tag’s href attribute — the double quotes around attributes were HTML‑encoded, so nothing looked obviously broken, but my value was there. Nothing weird at first glance.
 
-Submitted random input into the search box.
+Went back to the comment POST in Burp Repeater and replaced the website value with the payload:
 
-Observed the server response in Burp Suite Repeater.
-
-The input was reflected inside an HTML attribute value like this:
-
-<input type="text" name="search" value="USERINPUT">
+javascript:alert(1)
 
 
-Angle brackets (< >) were HTML-encoded, preventing straightforward <script> injection.
+Resent the request. Loaded the post page and inspected the author link. The href now contained javascript:alert(1) (with double quotes HTML‑encoded around attributes, but the scheme itself executes).
 
-2. Identify Injection Context
-
-Since input is inside a quoted attribute (value="..."), the way to escape is:
-
-Break out of the current attribute value.
-
-Introduce a new attribute containing a JavaScript event handler.
-
-3. Craft Payload
-
-The following payload was tested:
-
-" onmouseover="alert(1)
-
-
-Explanation:
-
-" → closes the current attribute.
-
-onmouseover="alert(1) → adds a new event handler that executes JavaScript when the element is hovered over.
-
-4. Deliver the Exploit
-
-Copied the search results URL containing the payload.
-
-Opened it in the browser.
-
-Hovered the mouse over the vulnerable element.
-
-The alert(1) box popped up, confirming successful XSS execution.
-
-Result
-
-The lab was successfully solved by escaping from the quoted attribute and injecting an onmouseover event handler.
+Verified it by right‑clicking the author name → “Copy link address” → pasted the URL into the address bar — alert popped. Clicking the name in the page also triggered the alert. Lab solved.
 
 Root Cause
 
-User input was directly reflected into an HTML attribute without proper context-aware encoding.
+The application stored and reflected user-controlled input into an anchor href without sanitizing or restricting the URI scheme. HTML encoding of attribute quotes alone does not stop dangerous schemes like javascript: from executing. The server trusted and reused the user-supplied website value directly in the link.
 
-While angle brackets were encoded, quotes (") were not, allowing attackers to escape the attribute.
+Fixes and Mitigation
 
-Mitigation
+Don’t allow dangerous URL schemes. Validate and normalize URLs server-side (allow only http, https, maybe mailto if needed).
 
-Apply context-aware output encoding: encode quotes when inserting user data into attribute values.
+If you accept URLs, parse them and reject or sanitize anything with javascript:, data:, or other executable schemes.
 
-Use frameworks or templating engines that automatically perform proper encoding for each HTML context.
+Canonicalize and validate inputs server-side — never rely solely on client-side checks.
 
-Implement a strong Content Security Policy (CSP) to reduce the impact of XSS attacks.
+As an extra layer, ensure output encoding is context‑aware (attribute encoding is good, but it must be combined with scheme checking).
+
+Consider dropping direct link rendering for untrusted user input — show plain text or prepend https:// if you want to force safe navigation.
