@@ -1,0 +1,121 @@
+Arbitrary object injection in PHP — CustomTemplate exploit
+Lab Difficulty: Practitioner
+Vulnerability: Insecure deserialization → arbitrary object injection (magic __destruct() used to run unlink())
+
+Summary
+Short version: the app stores a PHP object in your session. There’s a class on the server (CustomTemplate) with a __destruct() that calls unlink($this->lock_file_path). If you can replace the session object with a CustomTemplate instance whose lock_file_path points to /home/carlos/morale.txt, PHP will delete that file when the request ends. So we build that serialized object, encode it the same way the app does, shove it into the session cookie and send a request — file deleted, lab solved. Nice and tidy exploit once you find the class.
+
+Steps taken
+
+Log in to the lab
+
+Creds: wiener : peter — get a session cookie for your account.
+
+Locate CustomTemplate source confirm the dangerous code
+
+From the site map or by requesting /libs/CustomTemplate.php in Burp, send the file request to Repeater.
+
+Edit the request line in Repeater to /libs/CustomTemplate.php~ (append ~) and send. This often returns editor backup files.
+
+Read the returned source. Look for the class and its magic methods. In this lab you’ll find something like:
+
+class CustomTemplate {
+  public $lock_file_path;
+  public function __destruct() {
+    @unlink($this->lock_file_path);
+  }
+}
+
+
+Confirmation: __destruct() calls unlink() on $this->lock_file_path. That’s our lever.
+
+Build the malicious serialized object (exact syntax)
+
+PHP serialized object format for this class (raw, unencoded):
+
+O:14:"CustomTemplate":1:{s:14:"lock_file_path";s:23:"/home/carlos/morale.txt";}
+
+
+Breakdown:
+
+O = object
+
+14 = length of "CustomTemplate"
+
+1 = one property
+
+s:14:"lock_file_path"; = property name (14 bytes)
+
+s:23:"/home/carlos/morale.txt"; = property value (23 bytes)
+
+The numeric lengths must match exactly the byte length of the strings between quotes. If the lengths are off, unserialize() will fail.
+
+Encode the payload the same way the session cookie is encoded
+
+Inspect the real session cookie value from a captured request to see how the site stores it (it’s often base64 encoded and sometimes URL-encoded).
+
+Using Burp Decoder do:
+
+Paste the raw serialized string.
+
+Base64‑encode it (if the original cookie is base64).
+Example (CLI):
+
+echo -n 'O:14:"CustomTemplate":1:{s:14:"lock_file_path";s:23:"/home/carlos/morale.txt";}' | base64
+
+
+If the cookie is URL-encoded, URL-encode the base64 output (Burp can do this automatically if you use the Decoder’s encoders).
+
+Copy the final encoded string to clipboard.
+
+Replace the session cookie with your modified value and send a request
+
+Intercept or open a request in Repeater that contains the session cookie.
+
+Replace the cookie value (same cookie name) with your encoded payload. Make sure you don’t accidentally change cookie name or other cookies.
+
+Send the request. Any normal request that triggers session handling is enough — PHP will unserialize() the object for that request.
+
+Why the file is deleted (what actually happens)
+
+Server decodes your cookie and calls unserialize() → PHP creates a CustomTemplate object in memory with lock_file_path = "/home/carlos/morale.txt".
+
+At the end of the request (PHP finishes the script and cleans up), PHP destroys objects and runs __destruct() for each. __destruct() calls unlink($this->lock_file_path) and deletes the file.
+
+Verify success
+
+Lab will flag solved once /home/carlos/morale.txt is gone. If not obvious, try actions that depend on the file or re-open the site map to see confirmation.
+
+Exact payload (raw) to use
+
+O:14:"CustomTemplate":1:{s:14:"lock_file_path";s:23:"/home/carlos/morale.txt";}
+
+
+(Encode this exactly as the app uses — base64 and/or URL-encode before placing in the cookie.)
+
+Troubleshooting — common gotchas
+
+Length counters wrong: this is the #1 fail. Re-count bytes exactly (ASCII characters = 1 byte). Use an editor that shows length or a small script.
+
+Wrong encoding: if you paste raw serialized text where the app expects base64, it will fail. Check how the original cookie is stored.
+
+Wrong cookie: make sure you replace the actual session cookie name the app reads.
+
+Class not present: if app doesn’t load the class in that request type, unserialize might still instantiate it, but some setups/autoloaders can complicate things — in this lab the file exists on disk and the class is available.
+
+Permissions: unlink() will fail silently if the PHP user doesn’t have permissions to delete the file — but lab environment is configured for the exploit to succeed.
+
+Root cause (short)
+The app unserializes user-supplied data (session cookie) without validating the classes or properties. unserialize() blindly instantiates objects and magic methods like __destruct() run automatically later — allowing attacker-controlled properties to be used in dangerous calls (here unlink()).
+
+Fixes & mitigation (what developers should actually do)
+
+Don’t unserialize() untrusted user data. Avoid storing serialized objects in client-controlled cookies. Use safe formats (e.g. JSON) and validate everything server-side.
+
+If you must persist sessions client-side, only store simple, signed data (HMAC) or use server-side sessions. Don’t store raw PHP objects.
+
+Disable destructive magic methods or avoid sensitive operations in __destruct() / __wakeup() / __sleep(). They shouldn’t act on data that can be set by the client.
+
+Whitelist classes or use allowed_classes parameter in unserialize() (PHP 7.0+: unserialize($data, ['allowed_classes' => false])) to prevent instantiating arbitrary classes.
+
+Sanitize and validate file paths before calling unlink() (never call unlink on unchecked input).
