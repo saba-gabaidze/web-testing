@@ -1,0 +1,51 @@
+Modifying serialized data types — PHP object tampering in session cookie
+
+Lab Difficulty: Practitioner
+Vulnerability: Insecure deserialization / client-side session manipulation (authentication bypass)
+
+Summary
+
+The app stores a serialized PHP object in a client-side session cookie and trusts it. By editing the serialized object — changing the username to administrator and converting the access_token from a string to an integer — the server accepts you as the admin. From there you can access /admin and delete users (like carlos). Nothing fancy, just the server trusting deserialized client data.
+
+Steps Taken
+
+Logged in as the provided user: wiener : peter.
+
+After login I captured the post-login GET /my-account request in Burp and inspected the session cookie. It contained a serialized PHP object (looked like O:4:"User":2:{...}), so I sent the request to Burp Repeater to edit it.
+
+In Repeater’s Inspector I modified the serialized object. The important changes were:
+
+Change the username length and value to administrator (13 characters).
+
+Change the access_token value from a string to an integer 0: remove the double quotes and change the type marker from s to i.
+
+The final serialized object I used:
+
+O:4:"User":2:{s:8:"username";s:13:"administrator";s:12:"access_token";i:0;}
+
+
+(Make sure the s: lengths match the actual string lengths — administrator is 13, so s:13.)
+
+Clicked Apply changes in Repeater — Burp re-encoded the cookie and inserted it into the request automatically. Sent the modified request to the server.
+
+The response now contained a link to /admin — proof the server treated me as the administrator.
+
+I changed the request path to /admin and re-sent it to load the admin panel. It showed user management links.
+
+Finally I sent a request to /admin/delete?username=carlos. Request returned success — carlos was deleted. Lab solved.
+
+Root Cause
+
+The server deserializes and trusts user-controlled data from the client cookie (a PHP-serialized object) without integrity checks or server-side validation. Because the app relies on values inside that object for authentication/authorization, an attacker who can edit the cookie can change their identity/privileges. Also, the server didn’t enforce strict data types or validate the access token value/type after deserialization.
+
+Fixes and Mitigation
+
+Never trust client-side serialized objects. Move session state server-side (e.g., server-side sessions keyed by a random session ID) instead of storing authoritative objects in cookies.
+
+Add integrity checks if you must store data client-side: sign the cookie (HMAC) or use an authenticated encryption scheme so tampering is detectable.
+
+Validate types and values server-side after deserialization. Don’t assume a client-supplied value has the right type (e.g., cast and check token types/values).
+
+Avoid insecure (native) deserialization of untrusted data. Prefer safer formats (signed JSON, JWT with signature checks) or recreate objects on the server from trusted fields only.
+
+Minimize sensitive data in client storage. Don’t store authentication/authorization decisions in client-writable fields.
