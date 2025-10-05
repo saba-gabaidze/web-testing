@@ -1,0 +1,46 @@
+Modifying serialized objects — session cookie tamper (PHP object)
+
+Lab Difficulty: Apprentice
+Vulnerability: Insecure session serialization / client-side tampering → Privilege escalation
+
+Summary
+
+The app stores a PHP-serialized object in your session cookie (URL + Base64 encoded). Server trusts that object, so by flipping the admin flag from false to true in the serialized data you can give yourself admin rights. Once admin, hit /admin/delete?username=carlos and finish the lab. Pretty straightforward if you know where to look.
+
+Steps Taken
+
+Logged in as the provided user: wiener : peter.
+
+Looked at the post-login GET /my-account request and noticed a suspicious session cookie — it was URL-and-Base64-encoded. Nothing obvious on the page, so I inspected the cookie in Burp’s Inspector.
+
+Decoded the cookie (Burp does this for you in the Inspector) and found a PHP-serialized object. Example shape I saw:
+
+O:8:"stdClass":1:{s:5:"admin";b:0;}
+
+
+That b:0 is boolean false  bingo. Nothing weird at first glance, but that’s exactly what we need.
+4. Sent the request to Burp Repeater so I could edit the cookie payload. In Repeater’s Inspector (which shows the decoded serialized object) I edited the admin attribute to b:1:
+
+O:8:"stdClass":1:{s:5:"admin";b:1;}
+
+
+Clicked Apply changes  Burp re-encoded the cookie automatically.
+5. Resent the request. The response now included a link to /admin — the server treated me as an admin. Interesting.
+6. Changed the request path to /admin and confirmed admin panel access. It listed actions including deleting users.
+7. Finally, changed the path to /admin/delete?username=carlos and sent the request. Success — carlos was deleted and the lab was solved.
+
+Root Cause
+
+The server relies on client-controlled session data (a serialized PHP object) for authorization decisions. Because the object is stored client-side (even if encoded), an attacker who can modify the cookie can flip flags like admin and gain elevated privileges. The server fails to verify integrity or impose server-side authority checks.
+
+Fixes and Mitigation
+
+Stop trusting client-side session data. Keep authorization attributes server-side only.
+
+Sign and/or encrypt session cookies (use HMAC or a proper session store) so tampering is detectable. PHP’s native session mechanism (server-side) or frameworks’ signed session cookies are safer.
+
+Validate authorization on every protected endpoint server-side — don’t rely on a client value like admin for access control.
+
+If you must serialize complex objects, include integrity checks (HMAC) and versioning so modifications are rejected.
+
+Log and alert on suspicious cookie changes or unexpected role escalations.
