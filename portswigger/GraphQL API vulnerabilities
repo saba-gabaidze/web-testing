@@ -1,0 +1,21 @@
+Accessing private GraphQL posts  info disclosure via exposed schema
+
+Lab Difficulty: Apprentice
+Vulnerability: Information disclosure through insecure GraphQL schema
+
+Summary
+This one was about a hidden blog post that had a secret password. The GraphQL API exposed too much information, including the schema and private fields. By using Burp to introspect the API, I found a field called postPassword in the BlogPost type. Then I simply requested the missing post with id 3 and asked for that field directly. The server just gave it back, no checks at all.
+
+Steps Taken
+I opened the blog page and checked the requests in Burp. Blog posts were loaded through a POST request to /graphql/v1. In the response, I saw posts with IDs 1, 2, and 4, but 3 was missing, which clearly hinted at a hidden post.
+I sent the same request to Repeater and added an introspection query using Burp’s GraphQL menu. The response listed all the types and fields, and I noticed BlogPost had a field called postPassword.
+Then I edited the query to request id 3 and included postPassword in the selection. When I sent it, the response contained the password in plain text. I copied it and used it to solve the lab.
+
+Root Cause
+The GraphQL API exposed an introspectable schema and didn’t have any access control on sensitive fields. It also allowed querying any post ID without restrictions. Because of that, anyone could find and read private data like post passwords.
+
+Fixes and Mitigation
+Disable introspection in production or limit it to authenticated admin users.
+Add proper access control checks in resolvers so that private fields like postPassword can’t be queried by normal users.
+Avoid exposing sensitive fields in the schema unless absolutely necessary.
+Validate each query server-side to make sure users can only access what they’re authorized for.
