@@ -1,0 +1,31 @@
+Lab Difficulty: Practitioner
+Vulnerability: Information disclosure through exposed GraphQL fields / broken access controls
+
+Summary
+The GraphQL API exposes a getUser query that returns username and password fields. By introspecting the schema and calling getUser with the right id, you can read the administrator’s credentials in plain text. Once you have the admin password you can log in as admin and delete the user carlos. Pretty straightforward if you know how to use Burp’s GraphQL helpers.
+
+Steps taken
+
+Opened the lab in Burp’s browser and clicked My account to trigger the login flow.
+
+Tried to log in and watched the request in Proxy HTTP history. The login is sent as a POST to the GraphQL endpoint and contains a GraphQL mutation with username and password.
+
+Sent that GraphQL request to Repeater. In Repeater I used the GraphQL menu and selected Set introspection query. Sent the introspection request to see the schema.
+
+From the introspection result I saved the discovered GraphQL queries to the site map using GraphQL then Save GraphQL queries to site map.
+
+Went to Target site map and looked through the saved queries. Found a getUser query that returns username and password fields and takes an id argument. That immediately looked dangerous.
+
+Sent the getUser query to Repeater. The default id (0) returned nothing. Switched to the GraphQL tab in Repeater and tried different id values until the response returned the administrator’s record. The admin id was 1. The response contained the admin username and password in clear text.
+
+Used those credentials to log in as the administrator. Navigated to the Admin panel and deleted carlos. Lab solved.
+
+Root cause
+The GraphQL schema exposed sensitive fields and the API allowed querying those fields without enforcing proper authorization or field-level access control. Sensitive data like passwords should never be queryable by arbitrary clients. Relying on the UI to hide things is not security.
+
+Fixes and mitigation
+ Remove sensitive fields from the public schema or require authentication and strict authorization to access them.
+ Implement field-level access control in resolvers so only authorized users can request private fields.
+ Disable or restrict GraphQL introspection in production, or require admin-level access to run it.
+ Log and monitor unusual queries for sensitive fields so you can detect abuse early.
+ Never return raw passwords. Store passwords hashed and never expose them via any API.
