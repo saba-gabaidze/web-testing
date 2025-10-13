@@ -1,0 +1,29 @@
+Lab Difficulty: Apprentice
+Vulnerability: Information disclosure through insecure GraphQL schema
+
+Summary
+There’s a hidden blog post that contains a secret password. The GraphQL API exposes its schema and lets you request any field, including sensitive ones. Using Burp’s GraphQL introspection I found a postPassword field on the BlogPost type, then queried for post id 3 and read the password directly. Server just returned it with no checks.
+
+Steps taken
+
+Opened the blog page in Burp’s browser and checked the HTTP history. Blog posts were loaded by a POST to graphql v1.
+
+Looked at the response and noticed post IDs were sequential but id 3 was missing. That suggested a hidden post.
+
+Sent the POST request to Repeater. From the Repeater request editor I used the GraphQL option to insert an introspection query and sent it.
+
+The introspection response showed the BlogPost type and a field called postPassword. Interesting.
+
+Went back to the original POST in Repeater, changed the variables to request id 3, and added postPassword to the query selection. Sent the request.
+
+The response included the postPassword value. Copied it and submitted it to solve the lab.
+
+Root cause
+The GraphQL API allows introspection and returns any field a client asks for. Sensitive data was modelled on the BlogPost type and there were no field-level access controls or authorization checks. Relying on a missing UI link to hide content is not security.
+
+Fixes and mitigation
+Disable or restrict GraphQL introspection in production, or require authentication to run it.
+Implement field-level authorization in resolvers so sensitive fields like postPassword are only returned to authorized users.
+Remove or avoid exposing sensitive fields in the public schema when possible.
+Validate and enforce access control on every query and every field server side.
+Log and monitor unusual schema or field access attempts to catch abuse.
