@@ -1,0 +1,55 @@
+Accessing private GraphQL posts — info disclosure via exposed schema
+
+Lab Difficulty: Practitioner
+Vulnerability: GraphQL abuse to bypass rate limiting and brute force protections
+
+Summary
+The login runs over GraphQL and the API enforces a rate limit per origin. Instead of sending one login attempt at a time, I used GraphQL aliases to bundle many login mutations into a single request. The server treated that single request as one origin request and applied the rate limit once, but executed every aliased mutation inside it. That lets you test lots of passwords in one go and find the correct one for carlos.
+
+Steps taken
+
+Opened the lab in Burp’s browser and clicked My account to trigger the login flow.
+
+Tried a few wrong logins and watched the GraphQL login mutation appear in Proxy HTTP history. Sent that request to Repeater.
+
+In Repeater I performed several additional wrong attempts until the API started returning the rate limit error. That confirmed the server is blocking many separate requests.
+
+Switched to constructing a single GraphQL mutation that contains many aliased login mutations. Each alias is a separate login attempt but all are packaged in the same HTTP request. Example structure I used:
+
+mutation {
+  bruteforce0: login(input: { username: "carlos", password: "123456" }) {
+    token
+    success
+  }
+
+  bruteforce1: login(input: { username: "carlos", password: "password" }) {
+    token
+    success
+  }
+
+  bruteforce2: login(input: { username: "carlos", password: "letmein" }) {
+    token
+    success
+  }
+
+  ...repeat for all passwords you want to test...
+}
+
+
+If you’re editing a request originally created by the browser, remove the variables block and the operationName field before sending so the server accepts the raw mutation. You can remove those from Repeater’s Pretty tab.
+
+Sent the big aliased mutation. The response returned an object for each alias showing token and success.
+
+Used the response search for the string true to quickly find which alias succeeded. The alias that returned success true contained the password that worked.
+
+Logged in using carlos and that password to solve the lab.
+
+Root cause
+The GraphQL endpoint executes multiple mutation fields inside one HTTP request and the rate limiter counted requests per HTTP request origin rather than per mutation. That meant batching many login attempts into a single request bypassed the intended brute force protection. The API also returned success information per mutation, making it trivial to spot the winning password.
+
+Fixes and mitigation
+ Make rate limiting operate on effective operations, not just HTTP request count. For login operations, apply throttling per account or per targeted username.
+ Add server-side protections specific to authentication, such as exponential backoff, account lockouts after failed attempts, and CAPTCHAs for suspicious activity.
+ Restrict GraphQL mutation complexity and depth and limit the number of aliased fields allowed in a single request.
+ Remove detailed success indicators from failed auth responses. Return generic errors and log attempts for monitoring.
+ Require stronger authentication and monitoring for high-value accounts.
