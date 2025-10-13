@@ -1,0 +1,37 @@
+Finding a hidden GraphQL endpoint
+
+Lab Difficulty: Practitioner
+Vulnerability: Exposed hidden GraphQL endpoint with weak introspection defenses and unsafe mutation access
+
+Summary
+There’s a hidden GraphQL API under /api that doesn’t show up in the normal UI. It blocks straightforward introspection, but responds to GET queries. By probing common GraphQL paths and tweaking an introspection payload to bypass a naive filter, you can enumerate the schema, find user management queries and mutations, locate carlos’s user ID, and call a delete mutation to remove him. Pretty sneaky but straightforward once you know how to poke around.
+
+Steps taken
+
+I started by fuzzing likely GraphQL endpoints with GET requests in Repeater. Hitting /api returned a “Query not present” style response, which hinted a GraphQL endpoint might be hiding there.
+
+Since the endpoint accepted GET, I sent a tiny universal query as a URL param, for example /api?query=query{__typename}. The response confirmed it was GraphQL.
+
+I tried an introspection query next. The server was blocking a direct introspection payload, so I used Burp’s GraphQL → Set introspection query to insert a URL-encoded introspection body. The first attempt returned “introspection disallowed” because the server filtered queries matching the literal string "__schema{".
+
+To bypass that filter I added a newline after __schema in the encoded query so the regex no longer matched while the query stayed valid. The server then returned full introspection data.
+
+I saved discovered GraphQL queries to the site map (GraphQL → Save GraphQL queries to site map), went to Target → Site map, opened the GraphQL tab and looked through the schema. I found getUser and deleteOrganizationUser among other user-management operations.
+
+I used getUser in Repeater and brute-forced or changed the id variable until I found carlos. That revealed carlos has id 3.
+
+Finally, I executed the delete mutation against the endpoint to remove the user. Example mutation used (URL-encoded as a query parameter for the GET request):
+
+/api?query=mutation+{+deleteOrganizationUser(input:{id:+3})+{user{id}}+}
+
+The response showed the user object deleted. I verified carlos was gone from the UI and the lab was solved.
+
+Root cause
+A GraphQL endpoint was exposed at /api that accepted unauthenticated or insufficiently checked queries and mutations. Introspection was nominally blocked by a fragile string-based check, but that filter was bypassable. Field- and mutation-level authorization checks were missing or inadequate, so sensitive operations like deleting organization users could be performed by an attacker who discovered the endpoint.
+
+Fixes and mitigation
+ Don’t expose sensitive admin APIs to unauthenticated users. Require strong authentication and proper authorization for GraphQL endpoints.
+ Don’t rely on blacklisting or brittle string-based protections for introspection. Either disable introspection in production behind auth or enforce robust access control around it.
+ Implement field-level and mutation-level authorization in resolvers so only allowed roles can access or perform sensitive actions.
+ Log and monitor schema and mutation usage, and rate-limit or alert on unusual operations like deletion mutations from non-admin accounts.
+ Consider moving admin operations to a separate, authenticated-only endpoint rather than keeping them on a public API path.
