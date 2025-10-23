@@ -1,40 +1,32 @@
-Detecting NoSQL injection
+Detecting NoSQL injection 
 Lab Difficulty: Apprentice
-Vulnerability: NoSQL injection MongoDB
+Vulnerability: NoSQL injection
 
 Summary
-The category filter talks to a MongoDB backend and it doesn’t properly handle user input. By tampering with the category parameter you can inject boolean expressions and make the server return unreleased products. At first a single quote caused a JS error, which hinted that input was being inserted into a query without proper sanitization. After a few payload tries I got the app to treat the category filter as always-true and the hidden products showed up.
+The category filter queries a MongoDB backend and trusts user input. By injecting crafted values into the category parameter you can break the query logic and force the server to return unreleased products. The site is basically parsing your input into a query without proper validation or sanitization.
 
 Steps taken
-
-Opened the lab in Burp’s browser and clicked a product category to see what request is made.
-
-Checked Proxy → HTTP history and found the category filter request. Sent that request to Repeater.
-
-In Repeater I tried submitting a single quote in the category parameter. It caused a JavaScript syntax error in the response. Nothing obvious at first glance, but that error suggested input was being embedded into a query or script. Interesting.
-
-Next I tried a small JavaScript-style payload to see how the server reacted. Example payload used:
+I opened the lab in Burp’s browser and clicked a product category to see the request.
+In Proxy  HTTP history I found the category filter request and sent it to Repeater.
+First test: I submitted a single quote character in the category parameter. That caused a JavaScript syntax error in the response, which suggested that user input was being embedded in code on the server side. Nothing weird at first glance, but promising.
+Next I tried a small JavaScript-style payload in the category value:
 Gifts'+'
-I URL-encoded it before sending. It didn’t cause the same syntax error, which hinted the server was interpreting the input differently server-side.
-
-Tested boolean injections to observe behavior:
-
-A false condition: Gifts' && 0 && 'x
-URL-encoded and sent. No products returned. That confirmed the server was evaluating conditions.
-
-A true condition: Gifts' && 1 && 'x
-URL-encoded and sent. Products in the Gifts category were returned.
-
-Finally I used an always-true payload to bypass the filter and reveal unreleased items:
+I URL-encoded it in Repeater (select the value and press Ctrl+U), then resent the request. No syntax error this time, which hinted the server accepted the altered input and was interpreting it.
+Then I tested boolean-style injections to see if I could change the query result. I sent a false condition:
+Gifts' && 0 && 'x
+URL-encoded and resent. No products came back, confirming the condition affected the query.
+I then tried a true condition:
+Gifts' && 1 && 'x
+That returned products in the Gifts category. So I could control the truthiness of the query.
+Finally I used an always-true expression to bypass filters and retrieve extra items:
 Gifts'||1||'
-Sent it and then viewed the response in Burp’s browser. The response contained unreleased products. Lab solved.
+I viewed the response in Burp’s browser and confirmed unreleased products appeared in the listing. Lab solved.
 
 Root cause
-User input was being inserted into a query context without proper validation or parameterization. The application lets injected boolean expressions affect the query logic in MongoDB. In short: unsanitized input plus improper query building equals NoSQL injection.
+User-supplied input is being used directly in MongoDB query construction (or in server-side code that builds those queries) without proper validation or type enforcement. The app fails to treat user input as untrusted data, allowing logical operators or expressions to change the query behavior.
 
 Fixes and mitigation
- Use parameterized queries or proper query builders that do not concatenate raw strings into queries.
- Validate and sanitize inputs server-side. For category fields, allow only a whitelist of known categories.
- Normalize and canonicalize inputs before using them in queries.
- Apply least privilege to the database user so even if injection happens the damage is limited.
- Add monitoring and alerting for unusual query patterns, like boolean injection attempts.
+Treat all user input as untrusted. If a category must be one of a set of values, validate it server-side against a whitelist.
+Avoid building queries by concatenating raw input. Use parameterized queries or the drivers proper query-building APIs so input is always treated as data, not code.
+Enforce strict typing on inputs. Limit error detail returned to clients to avoid leaking info useful for crafting injections.
+Add logging and alerts for unusual query patterns or encoding attempts that suggest injection testing.
